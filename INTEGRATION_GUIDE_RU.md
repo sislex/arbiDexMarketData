@@ -1,5 +1,6 @@
 # 🤖 Integration Guide — arbiDexMarketData
 
+> **Автор:** Razhnou Aliaksei  
 > Документ предназначен для AI-агентов и разработчиков, которые хотят программно
 > взаимодействовать с сервисом рыночных данных **arbiDexMarketData**.
 
@@ -62,6 +63,7 @@ npm run test:cov        # с покрытием
 |---|---|---|
 | `PORT` | `3002` | HTTP/WS порт сервера |
 | `MAX_POINTS_PER_KEY` | `100000` | Максимум точек на ключ (FIFO-кольцо) |
+| `API_KEY` | _(пусто)_ | API-ключ. Если не задан — аутентификация отключена (dev-режим) |
 
 ---
 
@@ -492,12 +494,17 @@ socket.emit('write', { key: `${quote.source}|${quote.symbol}|askPrice`, value: q
 ```
 src/
   main.ts                          # Bootstrap: Swagger, ValidationPipe, IoAdapter, PORT
-  app.module.ts                    # ConfigModule.forRoot + StoreModule
+  app.module.ts                    # ConfigModule.forRoot + StoreModule + AuthModule
+  auth/
+    api-key.guard.ts               # Опциональная API-key аутентификация
+    auth.module.ts                 # AuthModule
+    tests/
+      api-key.guard.spec.ts        # 6 тестов API key guard
   store/
     data-store.ts                  # Ядро: DataStore (EventEmitter + Map, дедупликация, FIFO)
     store.module.ts                # @Module
     store.service.ts               # @Injectable — обёртка над DataStore
-    store.controller.ts            # 9 REST-эндпоинтов + Swagger декораторы
+    store.controller.ts            # 12 REST-эндпоинтов + Swagger декораторы
     store.gateway.ts               # Socket.IO Gateway /store
     interfaces/
       data-point.interface.ts      # { t: number, v: number }
@@ -506,6 +513,7 @@ src/
       write-batch.dto.ts           # { points: WritePointDto[] }
       query-series.dto.ts          # { from?, to?, limit? }
       keys-query.dto.ts            # { keys[], from?, to?, limit? }
+      memory-query.dto.ts          # { keys[] }
     tests/
       data-store.spec.ts           # 26 тестов ядра DataStore
       store.service.spec.ts        # 16 тестов StoreService
@@ -514,7 +522,7 @@ src/
 
 openapi.json                       # OpenAPI 3.0 spec (REST API)
 asyncapi.json                      # AsyncAPI 2.6 spec (WebSocket events)
-INTEGRATION_GUIDE.md               # Этот файл
+INTEGRATION_GUIDE.md               # Английская версия этого документа
 ```
 
 ---
@@ -556,3 +564,8 @@ npm test
 npm run test:cov
 ```
 
+---
+
+## Автор
+
+**Razhnou Aliaksei**
