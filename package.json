@@ -1,8 +1,8 @@
 {
   "name": "arbiDexMarketData",
   "version": "0.0.1",
-  "description": "",
-  "author": "",
+  "description": "Autonomous NestJS 11 service — universal in-memory time-series store for numeric market data, with REST API, WebSocket subscriptions, and OpenAPI documentation.",
+  "author": "Razhnou Aliaksei",
   "private": true,
   "license": "UNLICENSED",
   "scripts": {

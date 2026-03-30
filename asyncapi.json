@@ -4,7 +4,9 @@
     "title": "ArbiDex Market Data — WebSocket API",
     "version": "1.0.0",
     "description": "Real-time Socket.IO WebSocket API for the arbiDexMarketData service.\n\nTransport: Socket.IO v4 over WebSocket (Engine.IO protocol).\nNamespace: `/store`.\n\n**Authentication (when API_KEY is configured):**\n- Preferred: pass `{ auth: { apiKey: '<key>' } }` in the Socket.IO handshake options.\n- Alternative: pass `?api_key=<key>` as a URL query parameter.\n\nIf the key is wrong or missing the server emits `error` and disconnects the client.",
-    "contact": {}
+    "contact": {
+      "name": "Razhnou Aliaksei"
+    }
   },
   "servers": {
     "local": {

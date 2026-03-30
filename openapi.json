@@ -4,7 +4,9 @@
     "title": "ArbiDex Market Data",
     "description": "In-memory time-series store for market data. Supports REST API for reading/writing, WebSocket (Socket.IO) for real-time subscriptions, and OpenAPI documentation for AI agents.\n\n**Authentication:** if `API_KEY` is set in environment, supply it via `x-api-key` header or `?api_key=` query param. If `API_KEY` is not configured the API is open (development mode).",
     "version": "1.0",
-    "contact": {}
+    "contact": {
+      "name": "Razhnou Aliaksei"
+    }
   },
   "servers": [
     {

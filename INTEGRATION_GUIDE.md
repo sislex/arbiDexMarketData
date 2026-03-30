@@ -1,146 +1,148 @@
 # 🤖 Integration Guide — arbiDexMarketData
 
-> Документ предназначен для AI-агентов и разработчиков, которые хотят программно
-> взаимодействовать с сервисом рыночных данных **arbiDexMarketData**.
+> **Author:** Razhnou Aliaksei  
+> This document is intended for AI agents and developers who want to programmatically
+> interact with the **arbiDexMarketData** market data service.
 
 ---
 
-## 1. Обзор проекта
+## 1. Project Overview
 
-**arbiDexMarketData** — автономный NestJS 11 (TypeScript) сервис,
-который предоставляет универсальное **in-memory хранилище числовых временных рядов**
-по произвольным строковым ключам.
+**arbiDexMarketData** is an autonomous NestJS 11 (TypeScript) service
+that provides a universal **in-memory store of numeric time series**
+indexed by arbitrary string keys.
 
-### Назначение
+### Purpose
 
-Сервис является **центральным хабом рыночных данных** для экосистемы ArbiDex:
+The service acts as the **central market data hub** for the ArbiDex ecosystem:
 
-- Принимает котировки от **arbiDexServerBots** (и любых других продюсеров) через REST или WebSocket
-- Хранит историю цен (до 100 000 точек на ключ, FIFO)
-- Раздаёт данные потребителям — торговым ботам, дашбордам, аналитическим агентам
-- Поддерживает **real-time подписки** через Socket.IO
+- Accepts quotes from **arbiDexServerBots** (and any other producers) via REST or WebSocket
+- Stores price history (up to 100 000 points per key, FIFO ring)
+- Distributes data to consumers — trading bots, dashboards, analytics agents
+- Supports **real-time subscriptions** via Socket.IO
 
-### Стек
+### Stack
 
-| Компонент | Технология |
+| Component | Technology |
 |---|---|
-| Фреймворк | NestJS 11 |
-| Язык | TypeScript (strict) |
+| Framework | NestJS 11 |
+| Language | TypeScript (strict) |
 | WebSocket | Socket.IO (`@nestjs/platform-socket.io`) |
-| Документация | `@nestjs/swagger` + Swagger UI |
-| Конфигурация | `@nestjs/config` + `.env` |
-| Тесты | Jest (unit, 61 тест) |
-| Контейнер | Docker + docker-compose |
+| Documentation | `@nestjs/swagger` + Swagger UI |
+| Configuration | `@nestjs/config` + `.env` |
+| Tests | Jest (unit, 61 tests) |
+| Container | Docker + docker-compose |
 
 ---
 
-## 2. Запуск
+## 2. Running the Service
 
 ```bash
-# Установка зависимостей
+# Install dependencies
 npm install
 
-# Режим разработки (watch)
+# Development mode (watch)
 npm run start:dev
 
-# Production-сборка
+# Production build
 npm run build && npm run start:prod
 
-# Docker (рекомендуется для production)
+# Docker (recommended for production)
 npm run start:docker    # docker compose up --build -d
 npm run stop:docker     # docker compose down
 npm run logs:docker     # docker compose logs -f
 
-# Тесты
+# Tests
 npm test
-npm run test:cov        # с покрытием
+npm run test:cov        # with coverage
 ```
 
-### Переменные окружения (`.env`)
+### Environment Variables (`.env`)
 
-| Переменная | По умолчанию | Описание |
+| Variable | Default | Description |
 |---|---|---|
-| `PORT` | `3001` | HTTP/WS порт сервера |
-| `MAX_POINTS_PER_KEY` | `100000` | Максимум точек на ключ (FIFO-кольцо) |
+| `PORT` | `3001` | HTTP/WS server port |
+| `MAX_POINTS_PER_KEY` | `100000` | Maximum points per key (FIFO ring) |
+| `API_KEY` | _(empty)_ | API key. If not set — auth is disabled (dev mode) |
 
 ---
 
-## 3. Аутентификация (API Key)
+## 3. Authentication (API Key)
 
-Сервис поддерживает опциональную аутентификацию по API ключу.
+The service supports optional API key authentication.
 
-### Включение
+### Enabling
 
-В `.env` раскомментируйте и установите переменную:
+In `.env`, uncomment and set the variable:
 
 ```bash
-# Сгенерировать безопасный ключ:
+# Generate a secure key:
 openssl rand -hex 32
 
-# Записать в .env:
-API_KEY=ваш-секретный-ключ
+# Write to .env:
+API_KEY=your-secret-key
 ```
 
-Если `API_KEY` **не задан** (или пустая строка) — аутентификация **отключена** (dev-режим, любые запросы проходят).
+If `API_KEY` is **not set** (or is an empty string) — authentication is **disabled** (dev mode, all requests pass).
 
 ### REST API
 
-Передавайте ключ одним из двух способов (приоритет: заголовок > query):
+Pass the key in one of two ways (priority: header > query):
 
 ```bash
-# Заголовок (рекомендуется)
-curl -H "x-api-key: ваш-секретный-ключ" http://localhost:3001/store/keys
+# Header (recommended)
+curl -H "x-api-key: your-secret-key" http://localhost:3001/store/keys
 
-# Query-параметр
-curl "http://localhost:3001/store/keys?api_key=ваш-секретный-ключ"
+# Query param
+curl "http://localhost:3001/store/keys?api_key=your-secret-key"
 ```
 
-При неверном или отсутствующем ключе — `401 Unauthorized`.
+If the key is invalid or missing — `401 Unauthorized`.
 
 ### WebSocket (Socket.IO)
 
-Передавайте ключ в handshake:
+Pass the key in the handshake:
 
 ```typescript
-// auth объект (рекомендуется)
+// auth object (recommended)
 const socket = io('http://localhost:3001/store', {
-  auth: { apiKey: 'ваш-секретный-ключ' }
+  auth: { apiKey: 'your-secret-key' }
 });
 
-// или query-параметр
+// or query param
 const socket = io('http://localhost:3001/store', {
-  query: { api_key: 'ваш-секретный-ключ' }
+  query: { api_key: 'your-secret-key' }
 });
 ```
 
-При неверном ключе сервер отправит `error { message: 'Invalid or missing API key' }` и разорвёт соединение.
+If the key is invalid, the server emits `error { message: 'Invalid or missing API key' }` and disconnects.
 
 ### Swagger UI
 
-При включённой аутентификации нажмите кнопку **Authorize** в Swagger UI (`http://localhost:3001/api`) и введите API ключ в поле `x-api-key`.
+When authentication is enabled, click the **Authorize** button in Swagger UI (`http://localhost:3001/api`) and enter the API key in the `x-api-key` field.
 
 ---
 
-## 4. Формат данных
+## 4. Data Format
 
 ### DataPoint
 
 ```typescript
 interface DataPoint {
-  t: number;  // timestamp (мс), Unix epoch — Date.now()
-  v: number;  // числовое значение
+  t: number;  // timestamp (ms), Unix epoch — Date.now()
+  v: number;  // numeric value
 }
 ```
 
-### Ключ
+### Key
 
-Ключ — произвольная строка. Для совместимости с **arbiDexServerBots** используется формат:
+A key is an arbitrary string. For compatibility with **arbiDexServerBots**, the following format is used:
 
 ```
 <source>|<symbol>|<field>
 ```
 
-Примеры:
+Examples:
 ```
 binance|ETHUSDT|bidPrice
 binance|ETHUSDT|askPrice
@@ -152,10 +154,10 @@ gateio|ETH_USDT|askPrice
 dex:arbitrum|WETH/USDC|bidPrice
 ```
 
-### Дедупликация
+### Deduplication
 
-Если записываемое значение **не изменилось** относительно последней точки — новая точка **не записывается**.
-Это позволяет точно определять периоды, когда цена была неизменна.
+If the written value is **unchanged** compared to the last stored point — the new point is **not written**.
+This allows precise detection of periods when the price was constant.
 
 ---
 
@@ -165,10 +167,10 @@ dex:arbitrum|WETH/USDC|bidPrice
 **OpenAPI JSON:** `http://localhost:3001/api-json`  
 **Swagger UI:** `http://localhost:3001/api`
 
-### 5.1 Чтение данных
+### 5.1 Reading Data
 
 #### `GET /store/keys`
-Список всех ключей с данными.
+Returns the list of all keys that have data.
 
 ```bash
 curl http://localhost:3001/store/keys
@@ -178,7 +180,7 @@ curl http://localhost:3001/store/keys
 ---
 
 #### `GET /store/snapshot`
-Снапшот: все ключи с их **последней** точкой.
+Snapshot: all keys with their **latest** point.
 
 ```bash
 curl http://localhost:3001/store/snapshot
@@ -188,26 +190,26 @@ curl http://localhost:3001/store/snapshot
 ---
 
 #### `GET /store/key/:key`
-Временной ряд по ключу. Поддерживает фильтрацию:
+Time series for a key. Supports filtering:
 
-| Query-параметр | Тип | Описание |
+| Query param | Type | Description |
 |---|---|---|
-| `from` | number (мс) | Начало диапазона (включительно) |
-| `to` | number (мс) | Конец диапазона (включительно) |
-| `limit` | integer ≥ 1 | Вернуть последние N точек |
+| `from` | number (ms) | Range start (inclusive) |
+| `to` | number (ms) | Range end (inclusive) |
+| `limit` | integer ≥ 1 | Return the last N points |
 
 ```bash
-# Все точки
+# All points
 curl "http://localhost:3001/store/key/binance%7CETHUSDT%7CbidPrice"
 
-# Последние 50 точек
+# Last 50 points
 curl "http://localhost:3001/store/key/binance%7CETHUSDT%7CbidPrice?limit=50"
 
-# Диапазон по времени
+# Time range
 curl "http://localhost:3001/store/key/binance%7CETHUSDT%7CbidPrice?from=1700000000000&to=1700000099000"
 ```
 
-**Ответ:**
+**Response:**
 ```json
 {
   "key": "binance|ETHUSDT|bidPrice",
@@ -223,7 +225,7 @@ curl "http://localhost:3001/store/key/binance%7CETHUSDT%7CbidPrice?from=17000000
 ---
 
 #### `GET /store/key/:key/latest`
-Только последняя точка по ключу. Возвращает `404` если ключа нет.
+Only the latest point for the key. Returns `404` if the key does not exist.
 
 ```bash
 curl "http://localhost:3001/store/key/binance%7CETHUSDT%7CbidPrice/latest"
@@ -233,7 +235,7 @@ curl "http://localhost:3001/store/key/binance%7CETHUSDT%7CbidPrice/latest"
 ---
 
 #### `POST /store/keys`
-Серии сразу по нескольким ключам (+ опциональная фильтрация).
+Series for multiple keys at once (+ optional filtering).
 
 ```bash
 curl -X POST http://localhost:3001/store/keys \
@@ -244,7 +246,7 @@ curl -X POST http://localhost:3001/store/keys \
   }'
 ```
 
-**Ответ:**
+**Response:**
 ```json
 {
   "binance|ETHUSDT|bidPrice": { "points": [...], "count": 10, "last": { "t": ..., "v": ... } },
@@ -254,28 +256,28 @@ curl -X POST http://localhost:3001/store/keys \
 
 ---
 
-### 5.2 Запись данных
+### 5.2 Writing Data
 
 #### `POST /store/write`
-Записать одну точку.
+Write a single point.
 
 ```bash
 curl -X POST http://localhost:3001/store/write \
   -H 'Content-Type: application/json' \
   -d '{ "key": "binance|ETHUSDT|bidPrice", "value": 3500.5 }'
 
-# С явным timestamp
+# With explicit timestamp
 curl -X POST http://localhost:3001/store/write \
   -H 'Content-Type: application/json' \
   -d '{ "key": "binance|ETHUSDT|bidPrice", "value": 3500.5, "timestamp": 1700000001000 }'
 ```
 
-**Ответ:** `201 { "success": true }`
+**Response:** `201 { "success": true }`
 
 ---
 
 #### `POST /store/write/batch`
-Записать массив точек за один запрос (эффективнее для batch-продюсеров).
+Write an array of points in a single request (more efficient for batch producers).
 
 ```bash
 curl -X POST http://localhost:3001/store/write/batch \
@@ -289,14 +291,14 @@ curl -X POST http://localhost:3001/store/write/batch \
   }'
 ```
 
-**Ответ:** `201 { "written": 3 }`
+**Response:** `201 { "written": 3 }`
 
 ---
 
-### 5.3 Удаление данных
+### 5.3 Deleting Data
 
 #### `DELETE /store/key/:key`
-Удалить серию по ключу.
+Delete the series for a key.
 
 ```bash
 curl -X DELETE "http://localhost:3001/store/key/binance%7CETHUSDT%7CbidPrice"
@@ -304,7 +306,7 @@ curl -X DELETE "http://localhost:3001/store/key/binance%7CETHUSDT%7CbidPrice"
 ```
 
 #### `DELETE /store`
-Очистить **всё** хранилище.
+Clear **the entire** store.
 
 ```bash
 curl -X DELETE http://localhost:3001/store
@@ -313,20 +315,18 @@ curl -X DELETE http://localhost:3001/store
 
 ---
 
-### 5.4 Оценка потребления памяти
+### 5.4 Memory Usage
 
-Сервис хранит данные в памяти процесса. Эти эндпоинты позволяют отслеживать, сколько
-памяти занимают ключи. Размер вычисляется как JSON-сериализованная длина строки ключа +
-массива точек — детерминированно и одинаково на всех платформах.
+The service stores data in process memory. These endpoints allow tracking how much memory each key consumes. Size is computed as the JSON-serialized byte length of the key string + points array — deterministic and consistent across all platforms.
 
 #### `GET /store/memory`
-Отчёт по **всем** ключам.
+Report for **all** keys.
 
 ```bash
 curl http://localhost:3001/store/memory
 ```
 
-**Ответ:**
+**Response:**
 ```json
 {
   "keys": [
@@ -345,7 +345,7 @@ curl http://localhost:3001/store/memory
 ---
 
 #### `GET /store/key/:key/memory`
-Память для **одного** ключа. Возвращает `404` если ключ не существует.
+Memory for a **single** key. Returns `404` if the key does not exist.
 
 ```bash
 curl "http://localhost:3001/store/key/binance%7CETHUSDT%7CbidPrice/memory"
@@ -355,7 +355,7 @@ curl "http://localhost:3001/store/key/binance%7CETHUSDT%7CbidPrice/memory"
 ---
 
 #### `POST /store/memory/keys`
-Память для **списка** ключей. Несуществующие ключи молча пропускаются.
+Memory for a **list** of keys. Non-existent keys are silently skipped.
 
 ```bash
 curl -X POST http://localhost:3001/store/memory/keys \
@@ -363,7 +363,7 @@ curl -X POST http://localhost:3001/store/memory/keys \
   -d '{ "keys": ["binance|ETHUSDT|bidPrice", "mexc|ETHUSDT|askPrice"] }'
 ```
 
-**Ответ:** та же структура `MemoryUsageReport`, что и `GET /store/memory`.
+**Response:** same `MemoryUsageReport` structure as `GET /store/memory`.
 
 ---
 
@@ -372,9 +372,9 @@ curl -X POST http://localhost:3001/store/memory/keys \
 **Namespace:** `/store`  
 **URL:** `ws://localhost:3001/store`
 
-> **Машиночитаемый контракт:** [`asyncapi.json`](./asyncapi.json) — AsyncAPI 2.6 спецификация всех событий, схем и примеров.
+> **Machine-readable contract:** [`asyncapi.json`](./asyncapi.json) — AsyncAPI 2.6 specification of all events, schemas, and examples.
 
-### 6.1 Подключение (socket.io-client)
+### 6.1 Connecting (socket.io-client)
 
 ```typescript
 import { io } from 'socket.io-client';
@@ -384,7 +384,7 @@ const socket = io('http://localhost:3001/store');
 socket.on('connect', () => console.log('Connected:', socket.id));
 ```
 
-### 6.2 Подписка на конкретные ключи
+### 6.2 Subscribing to Specific Keys
 
 ```typescript
 socket.emit('subscribe', {
@@ -403,69 +403,69 @@ socket.on('dataChange', (data: { key: string; point: { t: number; v: number } })
 });
 ```
 
-### 6.3 Подписка на ВСЕ ключи
+### 6.3 Subscribing to ALL Keys
 
 ```typescript
-socket.emit('subscribe', {});       // пустой объект
-// или
-socket.emit('subscribe', { keys: [] }); // пустой массив
+socket.emit('subscribe', {});           // empty object
+// or
+socket.emit('subscribe', { keys: [] }); // empty array
 
 socket.on('subscribed', (info) => {
   console.log(info.keys); // 'all'
 });
 ```
 
-### 6.4 Запись через WebSocket
+### 6.4 Writing via WebSocket
 
 ```typescript
 socket.emit('write', {
   key: 'binance|ETHUSDT|bidPrice',
   value: 3500.5,
-  timestamp: Date.now(), // опционально
+  timestamp: Date.now(), // optional
 });
 ```
 
-### 6.5 Отписка
+### 6.5 Unsubscribing
 
 ```typescript
 socket.emit('unsubscribe');
 socket.on('unsubscribed', () => console.log('Unsubscribed'));
 ```
 
-### 6.6 Таблица событий
+### 6.6 Event Reference
 
-| Направление | Событие | Payload | Описание |
+| Direction | Event | Payload | Description |
 |---|---|---|---|
-| Клиент → Сервер | `subscribe` | `{ keys?: string[] }` | Подписка. Без `keys` — подписка на всё |
-| Клиент → Сервер | `unsubscribe` | — | Отписка |
-| Клиент → Сервер | `write` | `{ key, value, timestamp? }` | Запись точки |
-| Сервер → Клиент | `subscribed` | `{ keys: string[] \| 'all' }` | Подтверждение подписки |
-| Сервер → Клиент | `unsubscribed` | `{}` | Подтверждение отписки |
-| Сервер → Клиент | `dataChange` | `{ key: string, point: DataPoint }` | Новое значение |
+| Client → Server | `subscribe` | `{ keys?: string[] }` | Subscribe. Without `keys` — subscribe to all |
+| Client → Server | `unsubscribe` | — | Cancel subscription |
+| Client → Server | `write` | `{ key, value, timestamp? }` | Write a point |
+| Server → Client | `subscribed` | `{ keys: string[] \| 'all' }` | Subscription confirmed |
+| Server → Client | `unsubscribed` | `{}` | Unsubscription confirmed |
+| Server → Client | `dataChange` | `{ key: string, point: DataPoint }` | New value arrived |
 
-### 6.7 Подключение без socket.io-client (raw Engine.IO)
+### 6.7 Connecting Without socket.io-client (raw Engine.IO)
 
 ```
-1. GET  http://localhost:3001/store/socket.io/?EIO=4&transport=polling  → получить sid
+1. GET  http://localhost:3001/store/socket.io/?EIO=4&transport=polling  → get sid
 2. WS   ws://localhost:3001/store/socket.io/?EIO=4&transport=websocket&sid=<sid>
-3. → отправить: 40
-4. ← получить: 40{"sid":"..."}
-5. → отправить subscribe: 42["subscribe",{"keys":["binance|ETHUSDT|bidPrice"]}]
-6. ← получить: 42["dataChange",{"key":"binance|ETHUSDT|bidPrice","point":{"t":...,"v":...}}]
+3. → send: 40
+4. ← receive: 40{"sid":"..."}
+5. → send subscribe: 42["subscribe",{"keys":["binance|ETHUSDT|bidPrice"]}]
+6. ← receive: 42["dataChange",{"key":"binance|ETHUSDT|bidPrice","point":{"t":...,"v":...}}]
 ```
 
 ---
 
-## 7. Интеграция с arbiDexServerBots
+## 7. Integration with arbiDexServerBots
 
-**arbiDexServerBots** собирает котировки и складывает их в свой внутренний `PriceStore`.
-Чтобы продублировать данные в **arbiDexMarketData**, нужно добавить вызов после записи в `PriceStore`:
+**arbiDexServerBots** collects quotes and stores them in its internal `PriceStore`.
+To mirror data into **arbiDexMarketData**, add a call after writing to `PriceStore`:
 
 ```typescript
-// В джобе после получения котировки:
+// In a job after receiving a quote:
 priceStore.recordQuote(quote);
 
-// Дополнительно — отправить в arbiDexMarketData:
+// Additionally — send to arbiDexMarketData:
 await fetch('http://localhost:3001/store/write/batch', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
@@ -478,7 +478,7 @@ await fetch('http://localhost:3001/store/write/batch', {
 });
 ```
 
-Или через WebSocket (меньше overhead при высокочастотных обновлениях):
+Or via WebSocket (lower overhead for high-frequency updates):
 
 ```typescript
 socket.emit('write', { key: `${quote.source}|${quote.symbol}|bidPrice`, value: quote.bidPrice });
@@ -487,17 +487,22 @@ socket.emit('write', { key: `${quote.source}|${quote.symbol}|askPrice`, value: q
 
 ---
 
-## 8. Структура проекта
+## 8. Project Structure
 
 ```
 src/
   main.ts                          # Bootstrap: Swagger, ValidationPipe, IoAdapter, PORT
-  app.module.ts                    # ConfigModule.forRoot + StoreModule
+  app.module.ts                    # ConfigModule.forRoot + StoreModule + AuthModule
+  auth/
+    api-key.guard.ts               # Optional API key guard
+    auth.module.ts                 # AuthModule
+    tests/
+      api-key.guard.spec.ts        # 6 tests for API key guard
   store/
-    data-store.ts                  # Ядро: DataStore (EventEmitter + Map, дедупликация, FIFO)
+    data-store.ts                  # Core: DataStore (EventEmitter + Map, deduplication, FIFO)
     store.module.ts                # @Module
-    store.service.ts               # @Injectable — обёртка над DataStore
-    store.controller.ts            # 9 REST-эндпоинтов + Swagger декораторы
+    store.service.ts               # @Injectable — wrapper over DataStore
+    store.controller.ts            # 12 REST endpoints + Swagger decorators
     store.gateway.ts               # Socket.IO Gateway /store
     interfaces/
       data-point.interface.ts      # { t: number, v: number }
@@ -506,53 +511,59 @@ src/
       write-batch.dto.ts           # { points: WritePointDto[] }
       query-series.dto.ts          # { from?, to?, limit? }
       keys-query.dto.ts            # { keys[], from?, to?, limit? }
+      memory-query.dto.ts          # { keys[] }
     tests/
-      data-store.spec.ts           # 26 тестов ядра DataStore
-      store.service.spec.ts        # 16 тестов StoreService
-      store.controller.spec.ts     # 12 тестов StoreController
-      store.gateway.spec.ts        # 11 тестов StoreGateway
+      data-store.spec.ts           # 26 tests — DataStore core
+      store.service.spec.ts        # 16 tests — StoreService
+      store.controller.spec.ts     # 12 tests — StoreController
+      store.gateway.spec.ts        # 11 tests — StoreGateway
 
 openapi.json                       # OpenAPI 3.0 spec (REST API)
 asyncapi.json                      # AsyncAPI 2.6 spec (WebSocket events)
-INTEGRATION_GUIDE.md               # Этот файл
+INTEGRATION_GUIDE.md               # This file
 ```
 
 ---
 
-## 9. Ключевые архитектурные решения
+## 9. Key Architectural Decisions
 
-| Решение | Причина |
+| Decision | Reason |
 |---|---|
-| In-memory хранилище | Максимальная скорость read/write без I/O |
-| Дедупликация по value | Экономия памяти; интервалы между точками = время неизменности цены |
-| FIFO при достижении maxPoints | Защита от OOM при длительной работе |
-| EventEmitter для подписок | Нулевой polling, мгновенная доставка |
-| `__any__` event | Единственная точка для "подписаться на всё" без перебора ключей |
-| Socket.IO вместо raw WS | Автоматический reconnect, namespace, ack, поддержка всех платформ |
-| Многоступенчатый Dockerfile | Prod-образ содержит только `dist/` + prod-deps, без dev-tools |
+| In-memory store | Maximum read/write speed with zero I/O |
+| Deduplication by value | Memory savings; gaps between points = price stability periods |
+| FIFO on maxPoints | OOM protection for long-running processes |
+| EventEmitter for subscriptions | Zero polling, instant delivery |
+| `__any__` event | Single hook for "subscribe to everything" without key enumeration |
+| Socket.IO instead of raw WS | Auto-reconnect, namespaces, ack, cross-platform support |
+| Multi-stage Dockerfile | Prod image contains only `dist/` + prod deps, no dev tools |
 
 ---
 
-## 10. Добавление новых возможностей (для AI-агентов)
+## 10. Adding New Features (for AI Agents)
 
-При расширении проекта следуй этому порядку:
+When extending the project, follow this order:
 
-1. **Добавь интерфейс/тип** в `src/store/interfaces/` или `src/store/dto/`
-2. **Добавь метод в `DataStore`** (`src/store/data-store.ts`) — чистый TypeScript, без DI
-3. **Делегируй через `StoreService`** (`src/store/store.service.ts`)
-4. **Добавь эндпоинт в `StoreController`** или событие в `StoreGateway`
-5. **Напиши тест первым** (TDD) в `src/store/tests/*.spec.ts`
-6. **Обнови `openapi.json`** если изменился REST API
-7. **Обнови `asyncapi.json`** если изменились WebSocket-события
-8. **Обнови этот файл**
+1. **Add an interface/type** in `src/store/interfaces/` or `src/store/dto/`
+2. **Add a method to `DataStore`** (`src/store/data-store.ts`) — pure TypeScript, no DI
+3. **Delegate via `StoreService`** (`src/store/store.service.ts`)
+4. **Add an endpoint to `StoreController`** or an event to `StoreGateway`
+5. **Write the test first** (TDD) in `src/store/tests/*.spec.ts`
+6. **Update `openapi.json`** if the REST API changed
+7. **Update `asyncapi.json`** if WebSocket events changed
+8. **Update this file**
 
-Все тесты запускаются командой:
+Run all tests:
 ```bash
 npm test
 ```
 
-Покрытие:
+Run with coverage:
 ```bash
 npm run test:cov
 ```
 
+---
+
+## Author
+
+**Razhnou Aliaksei**
