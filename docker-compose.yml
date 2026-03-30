@@ -1,0 +1,22 @@
+services:
+  market-data:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    container_name: arbi-dex-market-data
+    restart: unless-stopped
+    ports:
+      - "${PORT:-3001}:3001"
+    environment:
+      PORT: 3001
+      MAX_POINTS_PER_KEY: ${MAX_POINTS_PER_KEY:-100000}
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3001/store/keys"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+

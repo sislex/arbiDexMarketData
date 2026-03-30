@@ -1,0 +1,319 @@
+{
+  "asyncapi": "2.6.0",
+  "info": {
+    "title": "ArbiDex Market Data — WebSocket API",
+    "version": "1.0.0",
+    "description": "Real-time Socket.IO WebSocket API for the arbiDexMarketData service.\n\nTransport: Socket.IO v4 over WebSocket (Engine.IO protocol).\nNamespace: `/store`.\n\n**Authentication (when API_KEY is configured):**\n- Preferred: pass `{ auth: { apiKey: '<key>' } }` in the Socket.IO handshake options.\n- Alternative: pass `?api_key=<key>` as a URL query parameter.\n\nIf the key is wrong or missing the server emits `error` and disconnects the client.",
+    "contact": {}
+  },
+  "servers": {
+    "local": {
+      "url": "localhost:3001",
+      "protocol": "ws",
+      "description": "Local development server",
+      "security": [
+        { "apiKeyAuth": [] }
+      ]
+    }
+  },
+  "channels": {
+    "/store/subscribe": {
+      "description": "Client subscribes to one or more data keys, or to all keys.",
+      "subscribe": {
+        "summary": "Server confirms the subscription",
+        "operationId": "onSubscribed",
+        "message": {
+          "$ref": "#/components/messages/Subscribed"
+        }
+      },
+      "publish": {
+        "summary": "Client requests a subscription",
+        "operationId": "sendSubscribe",
+        "message": {
+          "$ref": "#/components/messages/Subscribe"
+        }
+      }
+    },
+    "/store/unsubscribe": {
+      "description": "Client cancels all active subscriptions.",
+      "subscribe": {
+        "summary": "Server confirms the unsubscription",
+        "operationId": "onUnsubscribed",
+        "message": {
+          "$ref": "#/components/messages/Unsubscribed"
+        }
+      },
+      "publish": {
+        "summary": "Client sends unsubscribe",
+        "operationId": "sendUnsubscribe",
+        "message": {
+          "$ref": "#/components/messages/Unsubscribe"
+        }
+      }
+    },
+    "/store/write": {
+      "description": "Client writes a single data point into the store.",
+      "publish": {
+        "summary": "Client writes a data point",
+        "operationId": "sendWrite",
+        "message": {
+          "$ref": "#/components/messages/WritePoint"
+        }
+      }
+    },
+    "/store/dataChange": {
+      "description": "Server pushes a new data point to subscribed clients whenever a value changes.",
+      "subscribe": {
+        "summary": "Server emits a data change event",
+        "operationId": "onDataChange",
+        "message": {
+          "$ref": "#/components/messages/DataChange"
+        }
+      }
+    },
+    "/store/error": {
+      "description": "Server emits an error (e.g. invalid API key) before disconnecting the client.",
+      "subscribe": {
+        "summary": "Server emits an error",
+        "operationId": "onError",
+        "message": {
+          "$ref": "#/components/messages/ServerError"
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "apiKeyAuth": {
+        "type": "httpApiKey",
+        "in": "query",
+        "name": "api_key",
+        "description": "API key passed as `api_key` query parameter in the Socket.IO handshake URL, or as `auth.apiKey` in the Socket.IO handshake options object."
+      }
+    },
+    "messages": {
+      "Subscribe": {
+        "name": "subscribe",
+        "title": "Subscribe",
+        "summary": "Subscribe to specific keys or all keys",
+        "description": "Send this message to start receiving `dataChange` events.\n- If `keys` is omitted or empty — subscribe to **all** keys.\n- If `keys` is a non-empty array — subscribe only to those keys.",
+        "payload": {
+          "$ref": "#/components/schemas/SubscribePayload"
+        },
+        "examples": [
+          {
+            "name": "Subscribe to specific keys",
+            "payload": {
+              "keys": ["binance|ETHUSDT|bidPrice", "mexc|ETHUSDT|askPrice"]
+            }
+          },
+          {
+            "name": "Subscribe to all keys",
+            "payload": {}
+          }
+        ]
+      },
+      "Subscribed": {
+        "name": "subscribed",
+        "title": "Subscribed",
+        "summary": "Confirmation of successful subscription",
+        "payload": {
+          "$ref": "#/components/schemas/SubscribedPayload"
+        },
+        "examples": [
+          {
+            "name": "Subscribed to specific keys",
+            "payload": {
+              "keys": ["binance|ETHUSDT|bidPrice", "mexc|ETHUSDT|askPrice"]
+            }
+          },
+          {
+            "name": "Subscribed to all keys",
+            "payload": {
+              "keys": "all"
+            }
+          }
+        ]
+      },
+      "Unsubscribe": {
+        "name": "unsubscribe",
+        "title": "Unsubscribe",
+        "summary": "Cancel all active subscriptions",
+        "payload": {
+          "$ref": "#/components/schemas/EmptyPayload"
+        }
+      },
+      "Unsubscribed": {
+        "name": "unsubscribed",
+        "title": "Unsubscribed",
+        "summary": "Confirmation that all subscriptions have been cancelled",
+        "payload": {
+          "$ref": "#/components/schemas/EmptyPayload"
+        }
+      },
+      "WritePoint": {
+        "name": "write",
+        "title": "Write",
+        "summary": "Write a single numeric data point into the store",
+        "description": "Functionally equivalent to `POST /store/write`. `timestamp` defaults to `Date.now()` on the server if omitted.",
+        "payload": {
+          "$ref": "#/components/schemas/WritePointPayload"
+        },
+        "examples": [
+          {
+            "name": "Write with explicit timestamp",
+            "payload": {
+              "key": "binance|ETHUSDT|bidPrice",
+              "value": 3500.5,
+              "timestamp": 1700000001000
+            }
+          },
+          {
+            "name": "Write with server-side timestamp",
+            "payload": {
+              "key": "binance|ETHUSDT|bidPrice",
+              "value": 3501.0
+            }
+          }
+        ]
+      },
+      "DataChange": {
+        "name": "dataChange",
+        "title": "DataChange",
+        "summary": "A new data point has been recorded for a subscribed key",
+        "description": "Emitted only when the value actually changes (deduplication). If the new value equals the previous one, this event is NOT emitted.",
+        "payload": {
+          "$ref": "#/components/schemas/DataChangePayload"
+        },
+        "examples": [
+          {
+            "name": "Price update",
+            "payload": {
+              "key": "binance|ETHUSDT|bidPrice",
+              "point": { "t": 1700000001000, "v": 3500.5 }
+            }
+          }
+        ]
+      },
+      "ServerError": {
+        "name": "error",
+        "title": "Error",
+        "summary": "Server-side error — client will be disconnected immediately after",
+        "payload": {
+          "$ref": "#/components/schemas/ServerErrorPayload"
+        },
+        "examples": [
+          {
+            "name": "Invalid API key",
+            "payload": {
+              "message": "Invalid or missing API key"
+            }
+          }
+        ]
+      }
+    },
+    "schemas": {
+      "DataPoint": {
+        "type": "object",
+        "description": "A single time-series data point",
+        "required": ["t", "v"],
+        "properties": {
+          "t": {
+            "type": "integer",
+            "description": "Unix timestamp in milliseconds",
+            "example": 1700000001000
+          },
+          "v": {
+            "type": "number",
+            "description": "Numeric value",
+            "example": 3500.5
+          }
+        }
+      },
+      "SubscribePayload": {
+        "type": "object",
+        "properties": {
+          "keys": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Keys to subscribe to. Omit or pass empty array to subscribe to all keys.",
+            "example": ["binance|ETHUSDT|bidPrice", "mexc|ETHUSDT|askPrice"]
+          }
+        }
+      },
+      "SubscribedPayload": {
+        "type": "object",
+        "required": ["keys"],
+        "properties": {
+          "keys": {
+            "oneOf": [
+              {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "The specific keys that were subscribed to"
+              },
+              {
+                "type": "string",
+                "enum": ["all"],
+                "description": "Indicates a global subscription (all keys)"
+              }
+            ],
+            "example": ["binance|ETHUSDT|bidPrice"]
+          }
+        }
+      },
+      "EmptyPayload": {
+        "type": "object",
+        "description": "Empty payload — no fields required",
+        "properties": {}
+      },
+      "WritePointPayload": {
+        "type": "object",
+        "required": ["key", "value"],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Store key (arbitrary string, recommended format: source|symbol|field)",
+            "example": "binance|ETHUSDT|bidPrice"
+          },
+          "value": {
+            "type": "number",
+            "description": "Numeric value to store",
+            "example": 3500.5
+          },
+          "timestamp": {
+            "type": "integer",
+            "description": "Unix timestamp in ms. Defaults to Date.now() on the server if omitted.",
+            "example": 1700000001000
+          }
+        }
+      },
+      "DataChangePayload": {
+        "type": "object",
+        "required": ["key", "point"],
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "The store key that changed",
+            "example": "binance|ETHUSDT|bidPrice"
+          },
+          "point": {
+            "$ref": "#/components/schemas/DataPoint"
+          }
+        }
+      },
+      "ServerErrorPayload": {
+        "type": "object",
+        "required": ["message"],
+        "properties": {
+          "message": {
+            "type": "string",
+            "description": "Human-readable error description",
+            "example": "Invalid or missing API key"
+          }
+        }
+      }
+    }
+  }
+}
+

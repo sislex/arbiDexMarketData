@@ -1,0 +1,532 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "ArbiDex Market Data",
+    "description": "In-memory time-series store for market data. Supports REST API for reading/writing, WebSocket (Socket.IO) for real-time subscriptions, and OpenAPI documentation for AI agents.\n\n**Authentication:** if `API_KEY` is set in environment, supply it via `x-api-key` header or `?api_key=` query param. If `API_KEY` is not configured the API is open (development mode).",
+    "version": "1.0",
+    "contact": {}
+  },
+  "servers": [
+    {
+      "url": "http://localhost:3001",
+      "description": "Local development"
+    }
+  ],
+  "tags": [
+    {
+      "name": "store",
+      "description": "Time-series data store operations"
+    }
+  ],
+  "paths": {
+    "/store/keys": {
+      "get": {
+        "tags": ["store"],
+        "summary": "Get all keys that have data",
+        "operationId": "StoreController_getKeys",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Array of key strings",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "example": [
+                    "binance|ETHUSDT|bidPrice",
+                    "binance|ETHUSDT|askPrice",
+                    "mexc|ETHUSDT|bidPrice"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": ["store"],
+        "summary": "Get time series for multiple keys",
+        "operationId": "StoreController_getMultiSeries",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/KeysQueryDto" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Map of key → { points, count, last }",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MultiSeriesResponse" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/store/snapshot": {
+      "get": {
+        "tags": ["store"],
+        "summary": "Get snapshot: all keys with their latest point",
+        "operationId": "StoreController_getSnapshot",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Map of key → last DataPoint | null",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": {
+                    "oneOf": [
+                      { "$ref": "#/components/schemas/DataPoint" },
+                      { "type": "null" }
+                    ]
+                  },
+                  "example": {
+                    "binance|ETHUSDT|bidPrice": { "t": 1700000001000, "v": 3500.5 },
+                    "mexc|ETHUSDT|askPrice": { "t": 1700000002000, "v": 3501.0 }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/store/key/{key}/latest": {
+      "get": {
+        "tags": ["store"],
+        "summary": "Get latest point for a key",
+        "operationId": "StoreController_getLatest",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "example": "binance|ETHUSDT|bidPrice" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Last DataPoint",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/DataPoint" }
+              }
+            }
+          },
+          "404": { "description": "Key not found or no data" }
+        }
+      }
+    },
+    "/store/key/{key}": {
+      "get": {
+        "tags": ["store"],
+        "summary": "Get time series for a key with optional filtering",
+        "operationId": "StoreController_getSeries",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "example": "binance|ETHUSDT|bidPrice" }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": false,
+            "description": "Start timestamp (ms, inclusive)",
+            "schema": { "type": "number", "example": 1700000000000 }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": false,
+            "description": "End timestamp (ms, inclusive)",
+            "schema": { "type": "number", "example": 1700000099000 }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "description": "Return last N points",
+            "schema": { "type": "integer", "minimum": 1, "example": 100 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Series result",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/SeriesResponse" }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": ["store"],
+        "summary": "Delete all data for a key",
+        "operationId": "StoreController_deleteSeries",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "example": "binance|ETHUSDT|bidPrice" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Series deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "deleted": { "type": "boolean", "example": true } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/store/write": {
+      "post": {
+        "tags": ["store"],
+        "summary": "Write a single data point",
+        "operationId": "StoreController_writePoint",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/WritePointDto" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Point written successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "success": { "type": "boolean", "example": true } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/store/write/batch": {
+      "post": {
+        "tags": ["store"],
+        "summary": "Write multiple data points in one request",
+        "operationId": "StoreController_writeBatch",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/WriteBatchDto" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Points written successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "written": { "type": "integer", "example": 3 } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/store": {
+      "delete": {
+        "tags": ["store"],
+        "summary": "Clear entire store",
+        "operationId": "StoreController_clearStore",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Store cleared",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "cleared": { "type": "boolean", "example": true } }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/store/memory": {
+      "get": {
+        "tags": ["store"],
+        "summary": "Get estimated memory usage for all keys",
+        "description": "Returns per-key and aggregate estimated memory usage. Sizes are computed as the JSON-serialized byte length of key + data series.",
+        "operationId": "StoreController_getTotalMemory",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "description": "Memory usage report for all keys",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MemoryUsageReport" }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/store/key/{key}/memory": {
+      "get": {
+        "tags": ["store"],
+        "summary": "Get estimated memory usage for a single key",
+        "operationId": "StoreController_getKeyMemory",
+        "parameters": [
+          {
+            "name": "key",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "example": "binance|ETHUSDT|bidPrice" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Memory usage for the key",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/KeyMemoryUsage" }
+              }
+            }
+          },
+          "404": { "description": "Key not found" }
+        }
+      }
+    },
+    "/store/memory/keys": {
+      "post": {
+        "tags": ["store"],
+        "summary": "Get estimated memory usage for a list of keys",
+        "operationId": "StoreController_getMemoryForKeys",
+        "parameters": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/MemoryQueryDto" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Memory usage report for the requested keys",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/MemoryUsageReport" }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    { "ApiKeyHeader": [] },
+    { "ApiKeyQuery": [] }
+  ],
+  "components": {
+    "securitySchemes": {
+      "ApiKeyHeader": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "x-api-key",
+        "description": "API key passed as `x-api-key` HTTP header. Required only when `API_KEY` env variable is set on the server."
+      },
+      "ApiKeyQuery": {
+        "type": "apiKey",
+        "in": "query",
+        "name": "api_key",
+        "description": "API key passed as `?api_key=` URL query parameter. Use when headers cannot be set (e.g. browser fetch without CORS pre-flight). Required only when `API_KEY` env variable is set on the server."
+      }
+    },
+    "schemas": {
+      "DataPoint": {
+        "type": "object",
+        "description": "A single time-series data point",
+        "properties": {
+          "t": {
+            "type": "integer",
+            "description": "Unix timestamp in milliseconds",
+            "example": 1700000001000
+          },
+          "v": {
+            "type": "number",
+            "description": "Numeric value",
+            "example": 3500.5
+          }
+        },
+        "required": ["t", "v"]
+      },
+      "SeriesResponse": {
+        "type": "object",
+        "properties": {
+          "key": { "type": "string", "example": "binance|ETHUSDT|bidPrice" },
+          "points": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/DataPoint" }
+          },
+          "count": { "type": "integer", "example": 2 },
+          "last": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/DataPoint" },
+              { "type": "null" }
+            ]
+          }
+        },
+        "required": ["key", "points", "count", "last"]
+      },
+      "MultiSeriesResponse": {
+        "type": "object",
+        "additionalProperties": {
+          "$ref": "#/components/schemas/SeriesResponse"
+        },
+        "example": {
+          "binance|ETHUSDT|bidPrice": {
+            "key": "binance|ETHUSDT|bidPrice",
+            "points": [{ "t": 1700000001000, "v": 3500.5 }],
+            "count": 1,
+            "last": { "t": 1700000001000, "v": 3500.5 }
+          }
+        }
+      },
+      "WritePointDto": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Store key",
+            "example": "binance|ETHUSDT|bidPrice"
+          },
+          "value": {
+            "type": "number",
+            "description": "Numeric value",
+            "example": 3500.5
+          },
+          "timestamp": {
+            "type": "integer",
+            "description": "Unix timestamp in ms (defaults to Date.now())",
+            "example": 1700000000000
+          }
+        },
+        "required": ["key", "value"]
+      },
+      "WriteBatchDto": {
+        "type": "object",
+        "properties": {
+          "points": {
+            "type": "array",
+            "description": "Array of points to write",
+            "items": { "$ref": "#/components/schemas/WritePointDto" }
+          }
+        },
+        "required": ["points"]
+      },
+      "KeysQueryDto": {
+        "type": "object",
+        "properties": {
+          "keys": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "List of keys",
+            "example": ["binance|ETHUSDT|bidPrice", "mexc|ETHUSDT|askPrice"]
+          },
+          "from": {
+            "type": "number",
+            "description": "Start timestamp (ms, inclusive)",
+            "example": 1700000000000
+          },
+          "to": {
+            "type": "number",
+            "description": "End timestamp (ms, inclusive)",
+            "example": 1700000099000
+          },
+          "limit": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Return last N points per key",
+            "example": 100
+          }
+        },
+        "required": ["keys"]
+      },
+      "MemoryQueryDto": {
+        "type": "object",
+        "required": ["keys"],
+        "properties": {
+          "keys": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "List of keys to estimate memory usage for",
+            "example": ["binance|ETHUSDT|bidPrice", "mexc|ETHUSDT|askPrice"]
+          }
+        }
+      },
+      "KeyMemoryUsage": {
+        "type": "object",
+        "required": ["key", "points", "bytes", "bytesHuman"],
+        "properties": {
+          "key": { "type": "string", "example": "binance|ETHUSDT|bidPrice" },
+          "points": { "type": "integer", "description": "Number of stored data points", "example": 1024 },
+          "bytes": { "type": "integer", "description": "Estimated memory in bytes (JSON-serialized size of key + series)", "example": 28672 },
+          "bytesHuman": { "type": "string", "description": "Human-readable size string", "example": "28.00 KB" }
+        }
+      },
+      "MemoryUsageReport": {
+        "type": "object",
+        "required": ["keys", "total"],
+        "properties": {
+          "keys": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/KeyMemoryUsage" }
+          },
+          "total": {
+            "type": "object",
+            "required": ["keys", "points", "bytes", "bytesHuman"],
+            "properties": {
+              "keys": { "type": "integer", "description": "Number of keys in report", "example": 3 },
+              "points": { "type": "integer", "description": "Total data points across all keys", "example": 3072 },
+              "bytes": { "type": "integer", "description": "Total estimated bytes", "example": 86016 },
+              "bytesHuman": { "type": "string", "description": "Human-readable total size", "example": "84.00 KB" }
+            }
+          }
+        },
+        "example": {
+          "keys": [
+            { "key": "binance|ETHUSDT|bidPrice", "points": 1024, "bytes": 28672, "bytesHuman": "28.00 KB" },
+            { "key": "mexc|ETHUSDT|askPrice",    "points": 512,  "bytes": 14336, "bytesHuman": "14.00 KB" }
+          ],
+          "total": { "keys": 2, "points": 1536, "bytes": 43008, "bytesHuman": "42.00 KB" }
+        }
+      }
+    }
+  }
+}
+
