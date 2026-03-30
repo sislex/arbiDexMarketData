@@ -1,98 +1,199 @@
-<p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
-</p>
+# arbiDexMarketData
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
+Автономный **NestJS 11** сервис — универсальное in-memory хранилище числовых временных рядов по произвольным строковым ключам.
 
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
-</p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+Является центральным хабом рыночных данных в экосистеме **ArbiDex**:
+принимает котировки от `arbiDexServerBots` (и любых других продюсеров) через REST или WebSocket,
+хранит историю (до 100 000 точек на ключ, FIFO), раздаёт данные потребителям в реальном времени.
 
-## Description
+---
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Стек
 
-## Project setup
+| Компонент | Технология |
+|---|---|
+| Фреймворк | NestJS 11 (TypeScript strict) |
+| WebSocket | Socket.IO (`@nestjs/platform-socket.io`) |
+| Документация REST | `@nestjs/swagger` + Swagger UI |
+| Документация WS | AsyncAPI 2.6 (`asyncapi.json`) |
+| Конфигурация | `@nestjs/config` + `.env` |
+| Тесты | Jest — 61 unit-тест |
+| Контейнер | Docker + docker-compose |
 
-```bash
-$ npm install
-```
+---
 
-## Compile and run the project
+## Быстрый старт
+
+### Локально
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+npm install
+cp .env.example .env   # или создайте .env вручную
+npm run start:dev
 ```
 
-## Run tests
+### Docker (рекомендуется для production)
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+npm run start:docker   # docker compose up --build -d
+npm run logs:docker    # docker compose logs -f
+npm run stop:docker    # docker compose down
 ```
 
-## Deployment
+Сервис будет доступен на `http://localhost:3001`.
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+---
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+## Переменные окружения (`.env`)
+
+| Переменная | По умолчанию | Описание |
+|---|---|---|
+| `PORT` | `3001` | HTTP / WS порт сервера |
+| `MAX_POINTS_PER_KEY` | `100000` | Максимум точек на ключ (FIFO) |
+| `API_KEY` | _(пусто)_ | API-ключ. Если не задан — аутентификация отключена (dev-режим) |
+
+Сгенерировать безопасный ключ:
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+openssl rand -hex 32
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+> ⚠️ Никогда не коммитьте `.env` в репозиторий.
 
-## Resources
+---
 
-Check out a few resources that may come in handy when working with NestJS:
+## Аутентификация
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+Если `API_KEY` задан — все запросы требуют ключ:
 
-## Support
+```bash
+# REST — заголовок (рекомендуется)
+curl -H "x-api-key: <key>" http://localhost:3001/store/keys
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+# REST — query-параметр
+curl "http://localhost:3001/store/keys?api_key=<key>"
+```
 
-## Stay in touch
+```typescript
+// WebSocket — auth объект (рекомендуется)
+const socket = io('http://localhost:3001/store', { auth: { apiKey: '<key>' } });
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+// WebSocket — query
+const socket = io('http://localhost:3001/store', { query: { api_key: '<key>' } });
+```
 
-## License
+---
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+## REST API
+
+**Base URL:** `http://localhost:3001`  
+**Swagger UI:** `http://localhost:3001/api`  
+**OpenAPI JSON:** `http://localhost:3001/api-json`
+
+| Метод | Путь | Описание |
+|---|---|---|
+| `GET` | `/store/keys` | Все ключи с данными |
+| `GET` | `/store/snapshot` | Все ключи → последняя точка |
+| `GET` | `/store/key/:key` | Временной ряд (`from`, `to`, `limit`) |
+| `GET` | `/store/key/:key/latest` | Последняя точка по ключу |
+| `POST` | `/store/keys` | Серии по нескольким ключам сразу |
+| `POST` | `/store/write` | Записать одну точку |
+| `POST` | `/store/write/batch` | Записать массив точек |
+| `DELETE` | `/store/key/:key` | Удалить серию |
+| `DELETE` | `/store` | Очистить всё хранилище |
+| `GET` | `/store/memory` | Отчёт по памяти — все ключи |
+| `GET` | `/store/key/:key/memory` | Память для одного ключа |
+| `POST` | `/store/memory/keys` | Память для списка ключей |
+
+Полное описание параметров и ответов — в [INTEGRATION_GUIDE.md](./INTEGRATION_GUIDE.md#5-rest-api).
+
+---
+
+## WebSocket API (Socket.IO)
+
+**Namespace:** `/store`  
+**URL:** `ws://localhost:3001/store`  
+**AsyncAPI спецификация:** [`asyncapi.json`](./asyncapi.json)
+
+```typescript
+import { io } from 'socket.io-client';
+
+const socket = io('http://localhost:3001/store');
+
+// Подписаться на конкретные ключи
+socket.emit('subscribe', { keys: ['binance|ETHUSDT|bidPrice', 'mexc|ETHUSDT|askPrice'] });
+
+// Получать обновления
+socket.on('dataChange', ({ key, point }) => {
+  console.log(`${key} → ${point.v} @ ${new Date(point.t).toISOString()}`);
+});
+
+// Записать точку
+socket.emit('write', { key: 'binance|ETHUSDT|bidPrice', value: 3500.5 });
+
+// Отписаться
+socket.emit('unsubscribe');
+```
+
+Подписка на **все** ключи сразу: `socket.emit('subscribe', {})`.
+
+---
+
+## Формат данных
+
+```typescript
+// DataPoint
+{ t: number; v: number }  // t — timestamp мс (Unix epoch), v — числовое значение
+
+// Формат ключа (для совместимости с arbiDexServerBots)
+"<source>|<symbol>|<field>"
+// Примеры:
+"binance|ETHUSDT|bidPrice"
+"mexc|ETHUSDT|askPrice"
+"dex:arbitrum|WETH/USDC|bidPrice"
+```
+
+**Дедупликация:** если значение не изменилось — новая точка не записывается.
+
+---
+
+## Тесты
+
+```bash
+npm test             # все unit-тесты (61 тест)
+npm run test:cov     # с отчётом покрытия
+npm run test:e2e     # e2e тесты
+```
+
+---
+
+## Структура проекта
+
+```
+src/
+  main.ts                      # Bootstrap: Swagger, ValidationPipe, IoAdapter, PORT
+  app.module.ts                # ConfigModule + StoreModule + AuthModule
+  auth/
+    api-key.guard.ts           # Опциональная API-key аутентификация
+  store/
+    data-store.ts              # Ядро: Map + EventEmitter, дедупликация, FIFO
+    store.service.ts           # @Injectable — обёртка над DataStore
+    store.controller.ts        # REST-эндпоинты + Swagger
+    store.gateway.ts           # Socket.IO Gateway /store
+    dto/                       # WritePointDto, WriteBatchDto, QuerySeriesDto, ...
+    interfaces/                # DataPoint { t, v }
+    tests/                     # Unit-тесты
+
+openapi.json                   # OpenAPI 3.0 (REST)
+asyncapi.json                  # AsyncAPI 2.6 (WebSocket)
+INTEGRATION_GUIDE.md           # Подробная документация для разработчиков и AI-агентов
+```
+
+---
+
+## Документация
+
+- **[INTEGRATION_GUIDE.md](./INTEGRATION_GUIDE.md)** — полное руководство для разработчиков и AI-агентов
+- **[openapi.json](./openapi.json)** — машиночитаемая спецификация REST API (OpenAPI 3.0)
+- **[asyncapi.json](./asyncapi.json)** — машиночитаемая спецификация WebSocket (AsyncAPI 2.6)
+- **Swagger UI** — `http://localhost:3001/api` (интерактивная документация, доступна при запущенном сервисе)
