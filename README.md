@@ -42,7 +42,7 @@ npm run logs:docker    # docker compose logs -f
 npm run stop:docker    # docker compose down
 ```
 
-Service will be available at `http://localhost:3001`.
+Service will be available at `http://localhost:3002`.
 
 ---
 
@@ -50,7 +50,7 @@ Service will be available at `http://localhost:3001`.
 
 | Variable | Default | Description |
 |---|---|---|
-| `PORT` | `3001` | HTTP / WS server port |
+| `PORT` | `3002` | HTTP / WS server port |
 | `MAX_POINTS_PER_KEY` | `100000` | Maximum points per key (FIFO ring) |
 | `API_KEY` | _(empty)_ | API key. If not set — auth is disabled (dev mode) |
 
@@ -70,27 +70,27 @@ If `API_KEY` is set — all requests require the key:
 
 ```bash
 # REST — header (recommended)
-curl -H "x-api-key: <key>" http://localhost:3001/store/keys
+curl -H "x-api-key: <key>" http://localhost:3002/store/keys
 
 # REST — query param
-curl "http://localhost:3001/store/keys?api_key=<key>"
+curl "http://localhost:3002/store/keys?api_key=<key>"
 ```
 
 ```typescript
 // WebSocket — auth object (recommended)
-const socket = io('http://localhost:3001/store', { auth: { apiKey: '<key>' } });
+const socket = io('http://localhost:3002/store', { auth: { apiKey: '<key>' } });
 
 // WebSocket — query param
-const socket = io('http://localhost:3001/store', { query: { api_key: '<key>' } });
+const socket = io('http://localhost:3002/store', { query: { api_key: '<key>' } });
 ```
 
 ---
 
 ## REST API
 
-**Base URL:** `http://localhost:3001`  
-**Swagger UI:** `http://localhost:3001/api`  
-**OpenAPI JSON:** `http://localhost:3001/api-json`
+**Base URL:** `http://localhost:3002`  
+**Swagger UI:** `http://localhost:3002/api`  
+**OpenAPI JSON:** `http://localhost:3002/api-json`
 
 | Method | Path | Description |
 |---|---|---|
@@ -114,13 +114,13 @@ Full parameter and response descriptions — [INTEGRATION_GUIDE.md](./INTEGRATIO
 ## WebSocket API (Socket.IO)
 
 **Namespace:** `/store`  
-**URL:** `ws://localhost:3001/store`  
+**URL:** `ws://localhost:3002/store`  
 **AsyncAPI spec:** [`asyncapi.json`](./asyncapi.json)
 
 ```typescript
 import { io } from 'socket.io-client';
 
-const socket = io('http://localhost:3001/store');
+const socket = io('http://localhost:3002/store');
 
 // Subscribe to specific keys
 socket.emit('subscribe', { keys: ['binance|ETHUSDT|bidPrice', 'mexc|ETHUSDT|askPrice'] });
@@ -198,7 +198,7 @@ INTEGRATION_GUIDE.md           # Full guide for developers and AI agents
 - **[INTEGRATION_GUIDE.md](./INTEGRATION_GUIDE.md)** — full guide for developers and AI agents
 - **[openapi.json](./openapi.json)** — machine-readable REST API spec (OpenAPI 3.0)
 - **[asyncapi.json](./asyncapi.json)** — machine-readable WebSocket spec (AsyncAPI 2.6)
-- **Swagger UI** — `http://localhost:3001/api` (interactive docs, available when the service is running)
+- **Swagger UI** — `http://localhost:3002/api` (interactive docs, available when the service is running)
 
 ---
 

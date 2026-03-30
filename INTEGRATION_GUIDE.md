@@ -61,7 +61,7 @@ npm run test:cov        # with coverage
 
 | Variable | Default | Description |
 |---|---|---|
-| `PORT` | `3001` | HTTP/WS server port |
+| `PORT` | `3002` | HTTP/WS server port |
 | `MAX_POINTS_PER_KEY` | `100000` | Maximum points per key (FIFO ring) |
 | `API_KEY` | _(empty)_ | API key. If not set — auth is disabled (dev mode) |
 
@@ -91,10 +91,10 @@ Pass the key in one of two ways (priority: header > query):
 
 ```bash
 # Header (recommended)
-curl -H "x-api-key: your-secret-key" http://localhost:3001/store/keys
+curl -H "x-api-key: your-secret-key" http://localhost:3002/store/keys
 
 # Query param
-curl "http://localhost:3001/store/keys?api_key=your-secret-key"
+curl "http://localhost:3002/store/keys?api_key=your-secret-key"
 ```
 
 If the key is invalid or missing — `401 Unauthorized`.
@@ -105,12 +105,12 @@ Pass the key in the handshake:
 
 ```typescript
 // auth object (recommended)
-const socket = io('http://localhost:3001/store', {
+const socket = io('http://localhost:3002/store', {
   auth: { apiKey: 'your-secret-key' }
 });
 
 // or query param
-const socket = io('http://localhost:3001/store', {
+const socket = io('http://localhost:3002/store', {
   query: { api_key: 'your-secret-key' }
 });
 ```
@@ -119,7 +119,7 @@ If the key is invalid, the server emits `error { message: 'Invalid or missing AP
 
 ### Swagger UI
 
-When authentication is enabled, click the **Authorize** button in Swagger UI (`http://localhost:3001/api`) and enter the API key in the `x-api-key` field.
+When authentication is enabled, click the **Authorize** button in Swagger UI (`http://localhost:3002/api`) and enter the API key in the `x-api-key` field.
 
 ---
 
@@ -163,9 +163,9 @@ This allows precise detection of periods when the price was constant.
 
 ## 5. REST API
 
-**Base URL:** `http://localhost:3001`  
-**OpenAPI JSON:** `http://localhost:3001/api-json`  
-**Swagger UI:** `http://localhost:3001/api`
+**Base URL:** `http://localhost:3002`  
+**OpenAPI JSON:** `http://localhost:3002/api-json`  
+**Swagger UI:** `http://localhost:3002/api`
 
 ### 5.1 Reading Data
 
@@ -173,7 +173,7 @@ This allows precise detection of periods when the price was constant.
 Returns the list of all keys that have data.
 
 ```bash
-curl http://localhost:3001/store/keys
+curl http://localhost:3002/store/keys
 # → ["binance|ETHUSDT|bidPrice", "mexc|ETHUSDT|askPrice", ...]
 ```
 
@@ -183,7 +183,7 @@ curl http://localhost:3001/store/keys
 Snapshot: all keys with their **latest** point.
 
 ```bash
-curl http://localhost:3001/store/snapshot
+curl http://localhost:3002/store/snapshot
 # → { "binance|ETHUSDT|bidPrice": { "t": 1700000001000, "v": 3500.5 }, ... }
 ```
 
@@ -200,13 +200,13 @@ Time series for a key. Supports filtering:
 
 ```bash
 # All points
-curl "http://localhost:3001/store/key/binance%7CETHUSDT%7CbidPrice"
+curl "http://localhost:3002/store/key/binance%7CETHUSDT%7CbidPrice"
 
 # Last 50 points
-curl "http://localhost:3001/store/key/binance%7CETHUSDT%7CbidPrice?limit=50"
+curl "http://localhost:3002/store/key/binance%7CETHUSDT%7CbidPrice?limit=50"
 
 # Time range
-curl "http://localhost:3001/store/key/binance%7CETHUSDT%7CbidPrice?from=1700000000000&to=1700000099000"
+curl "http://localhost:3002/store/key/binance%7CETHUSDT%7CbidPrice?from=1700000000000&to=1700000099000"
 ```
 
 **Response:**
@@ -228,7 +228,7 @@ curl "http://localhost:3001/store/key/binance%7CETHUSDT%7CbidPrice?from=17000000
 Only the latest point for the key. Returns `404` if the key does not exist.
 
 ```bash
-curl "http://localhost:3001/store/key/binance%7CETHUSDT%7CbidPrice/latest"
+curl "http://localhost:3002/store/key/binance%7CETHUSDT%7CbidPrice/latest"
 # → { "t": 1700000002000, "v": 3501.0 }
 ```
 
@@ -238,7 +238,7 @@ curl "http://localhost:3001/store/key/binance%7CETHUSDT%7CbidPrice/latest"
 Series for multiple keys at once (+ optional filtering).
 
 ```bash
-curl -X POST http://localhost:3001/store/keys \
+curl -X POST http://localhost:3002/store/keys \
   -H 'Content-Type: application/json' \
   -d '{
     "keys": ["binance|ETHUSDT|bidPrice", "mexc|ETHUSDT|askPrice"],
@@ -262,12 +262,12 @@ curl -X POST http://localhost:3001/store/keys \
 Write a single point.
 
 ```bash
-curl -X POST http://localhost:3001/store/write \
+curl -X POST http://localhost:3002/store/write \
   -H 'Content-Type: application/json' \
   -d '{ "key": "binance|ETHUSDT|bidPrice", "value": 3500.5 }'
 
 # With explicit timestamp
-curl -X POST http://localhost:3001/store/write \
+curl -X POST http://localhost:3002/store/write \
   -H 'Content-Type: application/json' \
   -d '{ "key": "binance|ETHUSDT|bidPrice", "value": 3500.5, "timestamp": 1700000001000 }'
 ```
@@ -280,7 +280,7 @@ curl -X POST http://localhost:3001/store/write \
 Write an array of points in a single request (more efficient for batch producers).
 
 ```bash
-curl -X POST http://localhost:3001/store/write/batch \
+curl -X POST http://localhost:3002/store/write/batch \
   -H 'Content-Type: application/json' \
   -d '{
     "points": [
@@ -301,7 +301,7 @@ curl -X POST http://localhost:3001/store/write/batch \
 Delete the series for a key.
 
 ```bash
-curl -X DELETE "http://localhost:3001/store/key/binance%7CETHUSDT%7CbidPrice"
+curl -X DELETE "http://localhost:3002/store/key/binance%7CETHUSDT%7CbidPrice"
 # → { "deleted": true }
 ```
 
@@ -309,7 +309,7 @@ curl -X DELETE "http://localhost:3001/store/key/binance%7CETHUSDT%7CbidPrice"
 Clear **the entire** store.
 
 ```bash
-curl -X DELETE http://localhost:3001/store
+curl -X DELETE http://localhost:3002/store
 # → { "cleared": true }
 ```
 
@@ -323,7 +323,7 @@ The service stores data in process memory. These endpoints allow tracking how mu
 Report for **all** keys.
 
 ```bash
-curl http://localhost:3001/store/memory
+curl http://localhost:3002/store/memory
 ```
 
 **Response:**
@@ -348,7 +348,7 @@ curl http://localhost:3001/store/memory
 Memory for a **single** key. Returns `404` if the key does not exist.
 
 ```bash
-curl "http://localhost:3001/store/key/binance%7CETHUSDT%7CbidPrice/memory"
+curl "http://localhost:3002/store/key/binance%7CETHUSDT%7CbidPrice/memory"
 # → { "key": "binance|ETHUSDT|bidPrice", "points": 1024, "bytes": 28672, "bytesHuman": "28.00 KB" }
 ```
 
@@ -358,7 +358,7 @@ curl "http://localhost:3001/store/key/binance%7CETHUSDT%7CbidPrice/memory"
 Memory for a **list** of keys. Non-existent keys are silently skipped.
 
 ```bash
-curl -X POST http://localhost:3001/store/memory/keys \
+curl -X POST http://localhost:3002/store/memory/keys \
   -H 'Content-Type: application/json' \
   -d '{ "keys": ["binance|ETHUSDT|bidPrice", "mexc|ETHUSDT|askPrice"] }'
 ```
@@ -370,7 +370,7 @@ curl -X POST http://localhost:3001/store/memory/keys \
 ## 6. WebSocket API (Socket.IO)
 
 **Namespace:** `/store`  
-**URL:** `ws://localhost:3001/store`
+**URL:** `ws://localhost:3002/store`
 
 > **Machine-readable contract:** [`asyncapi.json`](./asyncapi.json) — AsyncAPI 2.6 specification of all events, schemas, and examples.
 
@@ -379,7 +379,7 @@ curl -X POST http://localhost:3001/store/memory/keys \
 ```typescript
 import { io } from 'socket.io-client';
 
-const socket = io('http://localhost:3001/store');
+const socket = io('http://localhost:3002/store');
 
 socket.on('connect', () => console.log('Connected:', socket.id));
 ```
@@ -446,8 +446,8 @@ socket.on('unsubscribed', () => console.log('Unsubscribed'));
 ### 6.7 Connecting Without socket.io-client (raw Engine.IO)
 
 ```
-1. GET  http://localhost:3001/store/socket.io/?EIO=4&transport=polling  → get sid
-2. WS   ws://localhost:3001/store/socket.io/?EIO=4&transport=websocket&sid=<sid>
+1. GET  http://localhost:3002/store/socket.io/?EIO=4&transport=polling  → get sid
+2. WS   ws://localhost:3002/store/socket.io/?EIO=4&transport=websocket&sid=<sid>
 3. → send: 40
 4. ← receive: 40{"sid":"..."}
 5. → send subscribe: 42["subscribe",{"keys":["binance|ETHUSDT|bidPrice"]}]
@@ -466,7 +466,7 @@ To mirror data into **arbiDexMarketData**, add a call after writing to `PriceSto
 priceStore.recordQuote(quote);
 
 // Additionally — send to arbiDexMarketData:
-await fetch('http://localhost:3001/store/write/batch', {
+await fetch('http://localhost:3002/store/write/batch', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({

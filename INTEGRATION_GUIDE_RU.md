@@ -60,7 +60,7 @@ npm run test:cov        # с покрытием
 
 | Переменная | По умолчанию | Описание |
 |---|---|---|
-| `PORT` | `3001` | HTTP/WS порт сервера |
+| `PORT` | `3002` | HTTP/WS порт сервера |
 | `MAX_POINTS_PER_KEY` | `100000` | Максимум точек на ключ (FIFO-кольцо) |
 
 ---
@@ -89,10 +89,10 @@ API_KEY=ваш-секретный-ключ
 
 ```bash
 # Заголовок (рекомендуется)
-curl -H "x-api-key: ваш-секретный-ключ" http://localhost:3001/store/keys
+curl -H "x-api-key: ваш-секретный-ключ" http://localhost:3002/store/keys
 
 # Query-параметр
-curl "http://localhost:3001/store/keys?api_key=ваш-секретный-ключ"
+curl "http://localhost:3002/store/keys?api_key=ваш-секретный-ключ"
 ```
 
 При неверном или отсутствующем ключе — `401 Unauthorized`.
@@ -103,12 +103,12 @@ curl "http://localhost:3001/store/keys?api_key=ваш-секретный-клю�
 
 ```typescript
 // auth объект (рекомендуется)
-const socket = io('http://localhost:3001/store', {
+const socket = io('http://localhost:3002/store', {
   auth: { apiKey: 'ваш-секретный-ключ' }
 });
 
 // или query-параметр
-const socket = io('http://localhost:3001/store', {
+const socket = io('http://localhost:3002/store', {
   query: { api_key: 'ваш-секретный-ключ' }
 });
 ```
@@ -117,7 +117,7 @@ const socket = io('http://localhost:3001/store', {
 
 ### Swagger UI
 
-При включённой аутентификации нажмите кнопку **Authorize** в Swagger UI (`http://localhost:3001/api`) и введите API ключ в поле `x-api-key`.
+При включённой аутентификации нажмите кнопку **Authorize** в Swagger UI (`http://localhost:3002/api`) и введите API ключ в поле `x-api-key`.
 
 ---
 
@@ -161,9 +161,9 @@ dex:arbitrum|WETH/USDC|bidPrice
 
 ## 5. REST API
 
-**Base URL:** `http://localhost:3001`  
-**OpenAPI JSON:** `http://localhost:3001/api-json`  
-**Swagger UI:** `http://localhost:3001/api`
+**Base URL:** `http://localhost:3002`  
+**OpenAPI JSON:** `http://localhost:3002/api-json`  
+**Swagger UI:** `http://localhost:3002/api`
 
 ### 5.1 Чтение данных
 
@@ -171,7 +171,7 @@ dex:arbitrum|WETH/USDC|bidPrice
 Список всех ключей с данными.
 
 ```bash
-curl http://localhost:3001/store/keys
+curl http://localhost:3002/store/keys
 # → ["binance|ETHUSDT|bidPrice", "mexc|ETHUSDT|askPrice", ...]
 ```
 
@@ -181,7 +181,7 @@ curl http://localhost:3001/store/keys
 Снапшот: все ключи с их **последней** точкой.
 
 ```bash
-curl http://localhost:3001/store/snapshot
+curl http://localhost:3002/store/snapshot
 # → { "binance|ETHUSDT|bidPrice": { "t": 1700000001000, "v": 3500.5 }, ... }
 ```
 
@@ -198,13 +198,13 @@ curl http://localhost:3001/store/snapshot
 
 ```bash
 # Все точки
-curl "http://localhost:3001/store/key/binance%7CETHUSDT%7CbidPrice"
+curl "http://localhost:3002/store/key/binance%7CETHUSDT%7CbidPrice"
 
 # Последние 50 точек
-curl "http://localhost:3001/store/key/binance%7CETHUSDT%7CbidPrice?limit=50"
+curl "http://localhost:3002/store/key/binance%7CETHUSDT%7CbidPrice?limit=50"
 
 # Диапазон по времени
-curl "http://localhost:3001/store/key/binance%7CETHUSDT%7CbidPrice?from=1700000000000&to=1700000099000"
+curl "http://localhost:3002/store/key/binance%7CETHUSDT%7CbidPrice?from=1700000000000&to=1700000099000"
 ```
 
 **Ответ:**
@@ -226,7 +226,7 @@ curl "http://localhost:3001/store/key/binance%7CETHUSDT%7CbidPrice?from=17000000
 Только последняя точка по ключу. Возвращает `404` если ключа нет.
 
 ```bash
-curl "http://localhost:3001/store/key/binance%7CETHUSDT%7CbidPrice/latest"
+curl "http://localhost:3002/store/key/binance%7CETHUSDT%7CbidPrice/latest"
 # → { "t": 1700000002000, "v": 3501.0 }
 ```
 
@@ -236,7 +236,7 @@ curl "http://localhost:3001/store/key/binance%7CETHUSDT%7CbidPrice/latest"
 Серии сразу по нескольким ключам (+ опциональная фильтрация).
 
 ```bash
-curl -X POST http://localhost:3001/store/keys \
+curl -X POST http://localhost:3002/store/keys \
   -H 'Content-Type: application/json' \
   -d '{
     "keys": ["binance|ETHUSDT|bidPrice", "mexc|ETHUSDT|askPrice"],
@@ -260,12 +260,12 @@ curl -X POST http://localhost:3001/store/keys \
 Записать одну точку.
 
 ```bash
-curl -X POST http://localhost:3001/store/write \
+curl -X POST http://localhost:3002/store/write \
   -H 'Content-Type: application/json' \
   -d '{ "key": "binance|ETHUSDT|bidPrice", "value": 3500.5 }'
 
 # С явным timestamp
-curl -X POST http://localhost:3001/store/write \
+curl -X POST http://localhost:3002/store/write \
   -H 'Content-Type: application/json' \
   -d '{ "key": "binance|ETHUSDT|bidPrice", "value": 3500.5, "timestamp": 1700000001000 }'
 ```
@@ -278,7 +278,7 @@ curl -X POST http://localhost:3001/store/write \
 Записать массив точек за один запрос (эффективнее для batch-продюсеров).
 
 ```bash
-curl -X POST http://localhost:3001/store/write/batch \
+curl -X POST http://localhost:3002/store/write/batch \
   -H 'Content-Type: application/json' \
   -d '{
     "points": [
@@ -299,7 +299,7 @@ curl -X POST http://localhost:3001/store/write/batch \
 Удалить серию по ключу.
 
 ```bash
-curl -X DELETE "http://localhost:3001/store/key/binance%7CETHUSDT%7CbidPrice"
+curl -X DELETE "http://localhost:3002/store/key/binance%7CETHUSDT%7CbidPrice"
 # → { "deleted": true }
 ```
 
@@ -307,7 +307,7 @@ curl -X DELETE "http://localhost:3001/store/key/binance%7CETHUSDT%7CbidPrice"
 Очистить **всё** хранилище.
 
 ```bash
-curl -X DELETE http://localhost:3001/store
+curl -X DELETE http://localhost:3002/store
 # → { "cleared": true }
 ```
 
@@ -323,7 +323,7 @@ curl -X DELETE http://localhost:3001/store
 Отчёт по **всем** ключам.
 
 ```bash
-curl http://localhost:3001/store/memory
+curl http://localhost:3002/store/memory
 ```
 
 **Ответ:**
@@ -348,7 +348,7 @@ curl http://localhost:3001/store/memory
 Память для **одного** ключа. Возвращает `404` если ключ не существует.
 
 ```bash
-curl "http://localhost:3001/store/key/binance%7CETHUSDT%7CbidPrice/memory"
+curl "http://localhost:3002/store/key/binance%7CETHUSDT%7CbidPrice/memory"
 # → { "key": "binance|ETHUSDT|bidPrice", "points": 1024, "bytes": 28672, "bytesHuman": "28.00 KB" }
 ```
 
@@ -358,7 +358,7 @@ curl "http://localhost:3001/store/key/binance%7CETHUSDT%7CbidPrice/memory"
 Память для **списка** ключей. Несуществующие ключи молча пропускаются.
 
 ```bash
-curl -X POST http://localhost:3001/store/memory/keys \
+curl -X POST http://localhost:3002/store/memory/keys \
   -H 'Content-Type: application/json' \
   -d '{ "keys": ["binance|ETHUSDT|bidPrice", "mexc|ETHUSDT|askPrice"] }'
 ```
@@ -370,7 +370,7 @@ curl -X POST http://localhost:3001/store/memory/keys \
 ## 6. WebSocket API (Socket.IO)
 
 **Namespace:** `/store`  
-**URL:** `ws://localhost:3001/store`
+**URL:** `ws://localhost:3002/store`
 
 > **Машиночитаемый контракт:** [`asyncapi.json`](./asyncapi.json) — AsyncAPI 2.6 спецификация всех событий, схем и примеров.
 
@@ -379,7 +379,7 @@ curl -X POST http://localhost:3001/store/memory/keys \
 ```typescript
 import { io } from 'socket.io-client';
 
-const socket = io('http://localhost:3001/store');
+const socket = io('http://localhost:3002/store');
 
 socket.on('connect', () => console.log('Connected:', socket.id));
 ```
@@ -446,8 +446,8 @@ socket.on('unsubscribed', () => console.log('Unsubscribed'));
 ### 6.7 Подключение без socket.io-client (raw Engine.IO)
 
 ```
-1. GET  http://localhost:3001/store/socket.io/?EIO=4&transport=polling  → получить sid
-2. WS   ws://localhost:3001/store/socket.io/?EIO=4&transport=websocket&sid=<sid>
+1. GET  http://localhost:3002/store/socket.io/?EIO=4&transport=polling  → получить sid
+2. WS   ws://localhost:3002/store/socket.io/?EIO=4&transport=websocket&sid=<sid>
 3. → отправить: 40
 4. ← получить: 40{"sid":"..."}
 5. → отправить subscribe: 42["subscribe",{"keys":["binance|ETHUSDT|bidPrice"]}]
@@ -466,7 +466,7 @@ socket.on('unsubscribed', () => console.log('Unsubscribed'));
 priceStore.recordQuote(quote);
 
 // Дополнительно — отправить в arbiDexMarketData:
-await fetch('http://localhost:3001/store/write/batch', {
+await fetch('http://localhost:3002/store/write/batch', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({

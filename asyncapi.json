@@ -10,7 +10,7 @@
   },
   "servers": {
     "local": {
-      "url": "localhost:3001",
+      "url": "localhost:3002",
       "protocol": "ws",
       "description": "Local development server",
       "security": [

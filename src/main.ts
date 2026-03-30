@@ -31,7 +31,7 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
 
-  const port = parseInt(process.env.PORT ?? '3001', 10);
+  const port = parseInt(process.env.PORT ?? '3002', 10);
   await app.listen(port);
   console.log(`ArbiDex Market Data server is running on http://localhost:${port}`);
   console.log(`Swagger UI: http://localhost:${port}/api`);
