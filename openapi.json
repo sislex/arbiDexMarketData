@@ -306,7 +306,9 @@
                               { "type": "string", "enum": ["all"] },
                               { "type": "null" }
                             ]
-                          }
+                          },
+                          "connectedAt": { "type": "integer", "description": "Unix timestamp (ms) when the client connected", "example": 1700000000000 },
+                          "connectedForMs": { "type": "integer", "description": "Milliseconds since client connected", "example": 34200 }
                         }
                       }
                     }
@@ -314,8 +316,8 @@
                   "example": {
                     "total": 2,
                     "clients": [
-                      { "id": "abc123", "subscribedKeys": ["binance|ETHUSDT|bidPrice", "mexc|ETHUSDT|askPrice"] },
-                      { "id": "def456", "subscribedKeys": "all" }
+                      { "id": "abc123", "subscribedKeys": ["binance|ETHUSDT|bidPrice", "mexc|ETHUSDT|askPrice"], "connectedAt": 1700000000000, "connectedForMs": 34200 },
+                      { "id": "def456", "subscribedKeys": "all", "connectedAt": 1700000001000, "connectedForMs": 33200 }
                     ]
                   }
                 }

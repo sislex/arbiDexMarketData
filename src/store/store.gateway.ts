@@ -14,6 +14,10 @@ export interface ClientInfo {
   id: string;
   /** Keys the client subscribed to. null = connected but not yet subscribed. */
   subscribedKeys: string[] | 'all' | null;
+  /** Unix timestamp (ms) when the client connected */
+  connectedAt: number;
+  /** How long the client has been connected, in milliseconds */
+  connectedForMs: number;
 }
 
 export interface ConnectedClientsReport {
@@ -32,6 +36,9 @@ export class StoreGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   /** socketId → subscribed keys (null = connected, not subscribed yet) */
   private readonly clientKeys = new Map<string, string[] | 'all' | null>();
+
+  /** socketId → connection timestamp (ms) */
+  private readonly clientConnectedAt = new Map<string, number>();
 
   private readonly apiKey: string | undefined;
 
@@ -66,6 +73,7 @@ export class StoreGateway implements OnGatewayConnection, OnGatewayDisconnect {
     }
 
     this.clientKeys.set(client.id, null);
+    this.clientConnectedAt.set(client.id, Date.now());
   }
 
   @SubscribeMessage('subscribe')
@@ -119,13 +127,21 @@ export class StoreGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.subscriptions.get(client.id)?.();
     this.subscriptions.delete(client.id);
     this.clientKeys.delete(client.id);
+    this.clientConnectedAt.delete(client.id);
   }
 
   /** Returns info about all currently connected WebSocket clients. */
   getConnectedClients(): ConnectedClientsReport {
+    const now = Date.now();
     const clients: ClientInfo[] = [];
     for (const [id, subscribedKeys] of this.clientKeys) {
-      clients.push({ id, subscribedKeys });
+      const connectedAt = this.clientConnectedAt.get(id) ?? now;
+      clients.push({
+        id,
+        subscribedKeys,
+        connectedAt,
+        connectedForMs: now - connectedAt,
+      });
     }
     return { total: clients.length, clients };
   }

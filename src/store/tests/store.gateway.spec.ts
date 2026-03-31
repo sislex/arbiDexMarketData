@@ -214,7 +214,10 @@ describe('StoreGateway', () => {
 
       const report = gateway.getConnectedClients();
       expect(report.total).toBe(1);
-      expect(report.clients[0]).toEqual({ id: 'c1', subscribedKeys: null });
+      expect(report.clients[0].id).toBe('c1');
+      expect(report.clients[0].subscribedKeys).toBeNull();
+      expect(report.clients[0].connectedAt).toBeGreaterThan(0);
+      expect(report.clients[0].connectedForMs).toBeGreaterThanOrEqual(0);
     });
 
     it('should show client with specific keys after subscribe', () => {
@@ -225,7 +228,7 @@ describe('StoreGateway', () => {
 
       const report = gateway.getConnectedClients();
       expect(report.total).toBe(1);
-      expect(report.clients[0]).toEqual({ id: 'c1', subscribedKeys: ['k1', 'k2'] });
+      expect(report.clients[0].subscribedKeys).toEqual(['k1', 'k2']);
     });
 
     it('should show "all" when subscribed to all keys', () => {
@@ -235,7 +238,7 @@ describe('StoreGateway', () => {
       gateway.handleSubscribe(client as any, {});
 
       const report = gateway.getConnectedClients();
-      expect(report.clients[0]).toEqual({ id: 'c1', subscribedKeys: 'all' });
+      expect(report.clients[0].subscribedKeys).toBe('all');
     });
 
     it('should reset to null after unsubscribe', () => {
@@ -246,7 +249,7 @@ describe('StoreGateway', () => {
       gateway.handleUnsubscribe(client as any);
 
       const report = gateway.getConnectedClients();
-      expect(report.clients[0]).toEqual({ id: 'c1', subscribedKeys: null });
+      expect(report.clients[0].subscribedKeys).toBeNull();
     });
 
     it('should remove client after disconnect', () => {
@@ -256,6 +259,16 @@ describe('StoreGateway', () => {
 
       const report = gateway.getConnectedClients();
       expect(report).toEqual({ total: 0, clients: [] });
+    });
+
+    it('connectedForMs should increase over time', async () => {
+      const client = makeClient('c1');
+      gateway.handleConnection(client as any);
+
+      await new Promise(r => setTimeout(r, 20));
+
+      const report = gateway.getConnectedClients();
+      expect(report.clients[0].connectedForMs).toBeGreaterThanOrEqual(10);
     });
 
     it('should track multiple clients independently', () => {
@@ -281,6 +294,11 @@ describe('StoreGateway', () => {
       expect(byId['c1'].subscribedKeys).toEqual(['k1']);
       expect(byId['c2'].subscribedKeys).toBe('all');
       expect(byId['c3'].subscribedKeys).toBeNull();
+      // all should have timing fields
+      for (const id of ['c1', 'c2', 'c3']) {
+        expect(byId[id].connectedAt).toBeGreaterThan(0);
+        expect(byId[id].connectedForMs).toBeGreaterThanOrEqual(0);
+      }
     });
   });
 });

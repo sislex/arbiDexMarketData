@@ -202,8 +202,8 @@ describe('StoreController', () => {
       const report = {
         total: 2,
         clients: [
-          { id: 'abc', subscribedKeys: ['binance|ETHUSDT|bidPrice'] },
-          { id: 'def', subscribedKeys: 'all' },
+          { id: 'abc', subscribedKeys: ['binance|ETHUSDT|bidPrice'], connectedAt: 1700000000000, connectedForMs: 5000 },
+          { id: 'def', subscribedKeys: 'all', connectedAt: 1700000001000, connectedForMs: 4000 },
         ],
       };
       gateway.getConnectedClients.mockReturnValue(report);

@@ -381,9 +381,9 @@ curl http://localhost:3002/store/clients
 {
   "total": 2,
   "clients": [
-    { "id": "abc123", "subscribedKeys": ["binance|ETHUSDT|bidPrice", "mexc|ETHUSDT|askPrice"] },
-    { "id": "def456", "subscribedKeys": "all" },
-    { "id": "ghi789", "subscribedKeys": null }
+    { "id": "abc123", "subscribedKeys": ["binance|ETHUSDT|bidPrice", "mexc|ETHUSDT|askPrice"], "connectedAt": 1700000000000, "connectedForMs": 34200 },
+    { "id": "def456", "subscribedKeys": "all", "connectedAt": 1700000001000, "connectedForMs": 33200 },
+    { "id": "ghi789", "subscribedKeys": null, "connectedAt": 1700000002000, "connectedForMs": 32200 }
   ]
 }
 ```
@@ -395,6 +395,8 @@ curl http://localhost:3002/store/clients
 | `clients[].subscribedKeys` | `string[]` | Subscribed to specific keys |
 | `clients[].subscribedKeys` | `"all"` | Subscribed to all keys |
 | `clients[].subscribedKeys` | `null` | Connected but not yet subscribed |
+| `clients[].connectedAt` | integer | Unix timestamp (ms) when the client connected |
+| `clients[].connectedForMs` | integer | Milliseconds the client has been connected |
 
 ---
 
