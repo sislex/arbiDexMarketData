@@ -310,24 +310,27 @@ describe('StoreGateway', () => {
 
   // ── disconnectClient ──────────────────────────────────────────
   describe('disconnectClient', () => {
-    it('should return false when client not found', () => {
-      (gateway as any).server = { sockets: new Map() };
+    it('should return false when client is not in clientKeys', () => {
       expect(gateway.disconnectClient('unknown')).toBe(false);
     });
 
-    it('should disconnect the socket and return true when found', () => {
-      const mockSocket = { disconnect: jest.fn() };
-      const sockets = new Map([['c1', mockSocket]]);
-      (gateway as any).server = { sockets };
+    it('should call server.in().disconnectSockets() and return true when client is connected', () => {
+      const disconnectSockets = jest.fn();
+      (gateway as any).server = { in: jest.fn().mockReturnValue({ disconnectSockets }) };
+
+      const client = makeClient('c1');
+      gateway.handleConnection(client as any);
 
       const result = gateway.disconnectClient('c1');
 
       expect(result).toBe(true);
-      expect(mockSocket.disconnect).toHaveBeenCalledWith(true);
+      expect((gateway as any).server.in).toHaveBeenCalledWith('c1');
+      expect(disconnectSockets).toHaveBeenCalledWith(true);
     });
 
     it('should return false when server is not initialized', () => {
       (gateway as any).server = undefined;
+      // client not in map → false without touching server
       expect(gateway.disconnectClient('c1')).toBe(false);
     });
   });

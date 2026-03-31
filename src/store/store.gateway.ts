@@ -166,9 +166,10 @@ export class StoreGateway implements OnGatewayConnection, OnGatewayDisconnect {
    * @returns true if the client was found and disconnected, false if not found.
    */
   disconnectClient(id: string): boolean {
-    const socket = this.server?.sockets?.get(id);
-    if (!socket) return false;
-    socket.disconnect(true);
+    if (!this.clientKeys.has(id)) return false;
+    // Each socket is automatically joined to a room with its own ID.
+    // server.in(id).disconnectSockets(true) closes the underlying connection.
+    this.server?.in(id).disconnectSockets(true);
     return true;
   }
 }
