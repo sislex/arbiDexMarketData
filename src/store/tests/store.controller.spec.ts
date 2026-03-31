@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { NotFoundException } from '@nestjs/common';
 import { StoreController } from '../store.controller';
 import { StoreService } from '../store.service';
+import { StoreGateway } from '../store.gateway';
 import { WritePointDto } from '../dto/write-point.dto';
 import { WriteBatchDto } from '../dto/write-batch.dto';
 import { QuerySeriesDto } from '../dto/query-series.dto';
@@ -22,18 +23,27 @@ const mockStoreService = () => ({
   getMemoryUsageForKeys: jest.fn(),
 });
 
+const mockStoreGateway = () => ({
+  getConnectedClients: jest.fn(),
+});
+
 describe('StoreController', () => {
   let controller: StoreController;
   let service: ReturnType<typeof mockStoreService>;
+  let gateway: ReturnType<typeof mockStoreGateway>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       controllers: [StoreController],
-      providers: [{ provide: StoreService, useFactory: mockStoreService }],
+      providers: [
+        { provide: StoreService, useFactory: mockStoreService },
+        { provide: StoreGateway, useFactory: mockStoreGateway },
+      ],
     }).compile();
 
     controller = module.get<StoreController>(StoreController);
     service = module.get(StoreService);
+    gateway = module.get(StoreGateway);
   });
 
   afterEach(() => jest.clearAllMocks());
@@ -183,6 +193,28 @@ describe('StoreController', () => {
       const dto: MemoryQueryDto = { keys: ['k1'] };
       expect(controller.getMemoryForKeys(dto)).toEqual(report);
       expect(service.getMemoryUsageForKeys).toHaveBeenCalledWith(['k1']);
+    });
+  });
+
+  // ── GET /store/clients ────────────────────────────────────────
+  describe('getConnectedClients', () => {
+    it('should return connected clients report from gateway', () => {
+      const report = {
+        total: 2,
+        clients: [
+          { id: 'abc', subscribedKeys: ['binance|ETHUSDT|bidPrice'] },
+          { id: 'def', subscribedKeys: 'all' },
+        ],
+      };
+      gateway.getConnectedClients.mockReturnValue(report);
+
+      expect(controller.getConnectedClients()).toEqual(report);
+      expect(gateway.getConnectedClients).toHaveBeenCalledTimes(1);
+    });
+
+    it('should return empty report when no clients connected', () => {
+      gateway.getConnectedClients.mockReturnValue({ total: 0, clients: [] });
+      expect(controller.getConnectedClients()).toEqual({ total: 0, clients: [] });
     });
   });
 });

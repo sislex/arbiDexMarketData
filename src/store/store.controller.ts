@@ -16,6 +16,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { StoreService } from './store.service';
+import { StoreGateway } from './store.gateway';
 import { WritePointDto } from './dto/write-point.dto';
 import { WriteBatchDto } from './dto/write-batch.dto';
 import { QuerySeriesDto } from './dto/query-series.dto';
@@ -25,7 +26,10 @@ import { MemoryQueryDto } from './dto/memory-query.dto';
 @ApiTags('store')
 @Controller('store')
 export class StoreController {
-  constructor(private readonly storeService: StoreService) {}
+  constructor(
+    private readonly storeService: StoreService,
+    private readonly storeGateway: StoreGateway,
+  ) {}
 
   // ── GET /store/keys ────────────────────────────────────────
   @Get('keys')
@@ -162,5 +166,32 @@ export class StoreController {
   getMemoryForKeys(@Body() dto: MemoryQueryDto): any {
     return this.storeService.getMemoryUsageForKeys(dto.keys);
   }
+
+  // ── GET /store/clients ────────────────────────────────────────
+  @Get('clients')
+  @ApiOperation({
+    summary: 'Get connected WebSocket clients',
+    description:
+      'Returns the number of currently connected WebSocket clients and the keys each client is subscribed to. ' +
+      '`subscribedKeys` is `null` when a client is connected but has not subscribed yet, ' +
+      '`"all"` when subscribed to all keys, or an array of specific key strings.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Connected clients report',
+    schema: {
+      example: {
+        total: 2,
+        clients: [
+          { id: 'abc123', subscribedKeys: ['binance|ETHUSDT|bidPrice', 'mexc|ETHUSDT|askPrice'] },
+          { id: 'def456', subscribedKeys: 'all' },
+        ],
+      },
+    },
+  })
+  getConnectedClients(): any {
+    return this.storeGateway.getConnectedClients();
+  }
 }
+
 

@@ -6,7 +6,7 @@ import { StoreGateway } from './store.gateway';
 @Module({
   providers: [StoreService, StoreGateway],
   controllers: [StoreController],
-  exports: [StoreService],
+  exports: [StoreService, StoreGateway],
 })
 export class StoreModule {}
 

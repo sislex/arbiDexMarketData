@@ -9,6 +9,19 @@ import { Server, Socket } from 'socket.io';
 import { ConfigService } from '@nestjs/config';
 import { StoreService } from './store.service';
 
+export interface ClientInfo {
+  /** Socket ID */
+  id: string;
+  /** Keys the client subscribed to. null = connected but not yet subscribed. */
+  subscribedKeys: string[] | 'all' | null;
+}
+
+export interface ConnectedClientsReport {
+  /** Total number of connected WebSocket clients */
+  total: number;
+  clients: ClientInfo[];
+}
+
 @WebSocketGateway({ namespace: '/store', cors: { origin: '*' } })
 export class StoreGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @WebSocketServer()
@@ -16,6 +29,9 @@ export class StoreGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   /** socketId → unsub function */
   private readonly subscriptions = new Map<string, () => void>();
+
+  /** socketId → subscribed keys (null = connected, not subscribed yet) */
+  private readonly clientKeys = new Map<string, string[] | 'all' | null>();
 
   private readonly apiKey: string | undefined;
 
@@ -36,17 +52,20 @@ export class StoreGateway implements OnGatewayConnection, OnGatewayDisconnect {
    *   io(url, { query: { api_key: '<key>' } })
    */
   handleConnection(client: Socket): void {
-    if (!this.apiKey) return; // auth disabled
+    if (this.apiKey) {
+      const provided: string =
+        (client.handshake?.auth?.['apiKey'] as string) ??
+        (client.handshake?.query?.['api_key'] as string) ??
+        '';
 
-    const provided: string =
-      (client.handshake?.auth?.['apiKey'] as string) ??
-      (client.handshake?.query?.['api_key'] as string) ??
-      '';
-
-    if (provided !== this.apiKey) {
-      client.emit('error', { message: 'Invalid or missing API key' });
-      client.disconnect(true);
+      if (provided !== this.apiKey) {
+        client.emit('error', { message: 'Invalid or missing API key' });
+        client.disconnect(true);
+        return;
+      }
     }
+
+    this.clientKeys.set(client.id, null);
   }
 
   @SubscribeMessage('subscribe')
@@ -65,6 +84,7 @@ export class StoreGateway implements OnGatewayConnection, OnGatewayDisconnect {
         client.emit('dataChange', { key, point });
       });
       this.subscriptions.set(client.id, unsub);
+      this.clientKeys.set(client.id, 'all');
       client.emit('subscribed', { keys: 'all' });
     } else {
       // Subscribe to specific keys
@@ -72,6 +92,7 @@ export class StoreGateway implements OnGatewayConnection, OnGatewayDisconnect {
         client.emit('dataChange', { key, point });
       });
       this.subscriptions.set(client.id, unsub);
+      this.clientKeys.set(client.id, keys);
       client.emit('subscribed', { keys });
     }
   }
@@ -80,6 +101,7 @@ export class StoreGateway implements OnGatewayConnection, OnGatewayDisconnect {
   handleUnsubscribe(client: Socket): void {
     this.subscriptions.get(client.id)?.();
     this.subscriptions.delete(client.id);
+    this.clientKeys.set(client.id, null);
     client.emit('unsubscribed', {});
   }
 
@@ -96,6 +118,15 @@ export class StoreGateway implements OnGatewayConnection, OnGatewayDisconnect {
   handleDisconnect(client: Socket): void {
     this.subscriptions.get(client.id)?.();
     this.subscriptions.delete(client.id);
+    this.clientKeys.delete(client.id);
+  }
+
+  /** Returns info about all currently connected WebSocket clients. */
+  getConnectedClients(): ConnectedClientsReport {
+    const clients: ClientInfo[] = [];
+    for (const [id, subscribedKeys] of this.clientKeys) {
+      clients.push({ id, subscribedKeys });
+    }
+    return { total: clients.length, clients };
   }
 }
-

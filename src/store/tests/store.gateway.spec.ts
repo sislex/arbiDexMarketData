@@ -200,5 +200,88 @@ describe('StoreGateway', () => {
       expect(() => gateway.handleDisconnect(client as any)).not.toThrow();
     });
   });
+
+  // ── getConnectedClients ───────────────────────────────────────
+  describe('getConnectedClients', () => {
+    it('should return empty report when no clients connected', () => {
+      const report = gateway.getConnectedClients();
+      expect(report).toEqual({ total: 0, clients: [] });
+    });
+
+    it('should show client with null subscribedKeys after connection', () => {
+      const client = makeClient('c1');
+      gateway.handleConnection(client as any);
+
+      const report = gateway.getConnectedClients();
+      expect(report.total).toBe(1);
+      expect(report.clients[0]).toEqual({ id: 'c1', subscribedKeys: null });
+    });
+
+    it('should show client with specific keys after subscribe', () => {
+      service.onChangeMulti.mockReturnValue(jest.fn());
+      const client = makeClient('c1');
+      gateway.handleConnection(client as any);
+      gateway.handleSubscribe(client as any, { keys: ['k1', 'k2'] });
+
+      const report = gateway.getConnectedClients();
+      expect(report.total).toBe(1);
+      expect(report.clients[0]).toEqual({ id: 'c1', subscribedKeys: ['k1', 'k2'] });
+    });
+
+    it('should show "all" when subscribed to all keys', () => {
+      service.onAnyChange.mockReturnValue(jest.fn());
+      const client = makeClient('c1');
+      gateway.handleConnection(client as any);
+      gateway.handleSubscribe(client as any, {});
+
+      const report = gateway.getConnectedClients();
+      expect(report.clients[0]).toEqual({ id: 'c1', subscribedKeys: 'all' });
+    });
+
+    it('should reset to null after unsubscribe', () => {
+      service.onAnyChange.mockReturnValue(jest.fn());
+      const client = makeClient('c1');
+      gateway.handleConnection(client as any);
+      gateway.handleSubscribe(client as any, {});
+      gateway.handleUnsubscribe(client as any);
+
+      const report = gateway.getConnectedClients();
+      expect(report.clients[0]).toEqual({ id: 'c1', subscribedKeys: null });
+    });
+
+    it('should remove client after disconnect', () => {
+      const client = makeClient('c1');
+      gateway.handleConnection(client as any);
+      gateway.handleDisconnect(client as any);
+
+      const report = gateway.getConnectedClients();
+      expect(report).toEqual({ total: 0, clients: [] });
+    });
+
+    it('should track multiple clients independently', () => {
+      service.onAnyChange.mockReturnValue(jest.fn());
+      service.onChangeMulti.mockReturnValue(jest.fn());
+
+      const c1 = makeClient('c1');
+      const c2 = makeClient('c2');
+      const c3 = makeClient('c3');
+
+      gateway.handleConnection(c1 as any);
+      gateway.handleConnection(c2 as any);
+      gateway.handleConnection(c3 as any);
+
+      gateway.handleSubscribe(c1 as any, { keys: ['k1'] });
+      gateway.handleSubscribe(c2 as any, {});
+      // c3 stays unsubscribed
+
+      const report = gateway.getConnectedClients();
+      expect(report.total).toBe(3);
+
+      const byId = Object.fromEntries(report.clients.map(c => [c.id, c]));
+      expect(byId['c1'].subscribedKeys).toEqual(['k1']);
+      expect(byId['c2'].subscribedKeys).toBe('all');
+      expect(byId['c3'].subscribedKeys).toBeNull();
+    });
+  });
 });
 

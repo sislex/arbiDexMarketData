@@ -30,7 +30,7 @@
 | WebSocket | Socket.IO (`@nestjs/platform-socket.io`) |
 | Документация | `@nestjs/swagger` + Swagger UI |
 | Конфигурация | `@nestjs/config` + `.env` |
-| Тесты | Jest (unit, 61 тест) |
+| Тесты | Jest (unit, 96 тестов) |
 | Контейнер | Docker + docker-compose |
 
 ---
@@ -369,6 +369,37 @@ curl -X POST http://localhost:3002/store/memory/keys \
 
 ---
 
+### 5.5 Подключённые WebSocket-клиенты
+
+#### `GET /store/clients`
+Возвращает список всех подключённых в данный момент WebSocket-клиентов и их подписки.
+
+```bash
+curl http://localhost:3002/store/clients
+```
+
+**Ответ:**
+```json
+{
+  "total": 2,
+  "clients": [
+    { "id": "abc123", "subscribedKeys": ["binance|ETHUSDT|bidPrice", "mexc|ETHUSDT|askPrice"] },
+    { "id": "def456", "subscribedKeys": "all" },
+    { "id": "ghi789", "subscribedKeys": null }
+  ]
+}
+```
+
+| Поле | Тип | Описание |
+|---|---|---|
+| `total` | integer | Количество подключённых клиентов |
+| `clients[].id` | string | Socket ID |
+| `clients[].subscribedKeys` | `string[]` | Подписан на конкретные ключи |
+| `clients[].subscribedKeys` | `"all"` | Подписан на все ключи |
+| `clients[].subscribedKeys` | `null` | Подключён, но ещё не подписан |
+
+---
+
 ## 6. WebSocket API (Socket.IO)
 
 **Namespace:** `/store`  
@@ -504,7 +535,7 @@ src/
     data-store.ts                  # Ядро: DataStore (EventEmitter + Map, дедупликация, FIFO)
     store.module.ts                # @Module
     store.service.ts               # @Injectable — обёртка над DataStore
-    store.controller.ts            # 12 REST-эндпоинтов + Swagger декораторы
+    store.controller.ts            # 13 REST-эндпоинтов + Swagger декораторы
     store.gateway.ts               # Socket.IO Gateway /store
     interfaces/
       data-point.interface.ts      # { t: number, v: number }
@@ -517,8 +548,8 @@ src/
     tests/
       data-store.spec.ts           # 26 тестов ядра DataStore
       store.service.spec.ts        # 16 тестов StoreService
-      store.controller.spec.ts     # 12 тестов StoreController
-      store.gateway.spec.ts        # 11 тестов StoreGateway
+      store.controller.spec.ts     # 14 тестов StoreController
+      store.gateway.spec.ts        # 18 тестов StoreGateway
 
 openapi.json                       # OpenAPI 3.0 spec (REST API)
 asyncapi.json                      # AsyncAPI 2.6 spec (WebSocket events)

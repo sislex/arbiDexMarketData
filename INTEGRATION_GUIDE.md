@@ -30,7 +30,7 @@ The service acts as the **central market data hub** for the ArbiDex ecosystem:
 | WebSocket | Socket.IO (`@nestjs/platform-socket.io`) |
 | Documentation | `@nestjs/swagger` + Swagger UI |
 | Configuration | `@nestjs/config` + `.env` |
-| Tests | Jest (unit, 61 tests) |
+| Tests | Jest (unit, 96 tests) |
 | Container | Docker + docker-compose |
 
 ---
@@ -367,6 +367,37 @@ curl -X POST http://localhost:3002/store/memory/keys \
 
 ---
 
+### 5.5 Connected WebSocket Clients
+
+#### `GET /store/clients`
+Returns all currently connected WebSocket clients and their subscriptions.
+
+```bash
+curl http://localhost:3002/store/clients
+```
+
+**Response:**
+```json
+{
+  "total": 2,
+  "clients": [
+    { "id": "abc123", "subscribedKeys": ["binance|ETHUSDT|bidPrice", "mexc|ETHUSDT|askPrice"] },
+    { "id": "def456", "subscribedKeys": "all" },
+    { "id": "ghi789", "subscribedKeys": null }
+  ]
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `total` | integer | Number of connected clients |
+| `clients[].id` | string | Socket ID |
+| `clients[].subscribedKeys` | `string[]` | Subscribed to specific keys |
+| `clients[].subscribedKeys` | `"all"` | Subscribed to all keys |
+| `clients[].subscribedKeys` | `null` | Connected but not yet subscribed |
+
+---
+
 ## 6. WebSocket API (Socket.IO)
 
 **Namespace:** `/store`  
@@ -502,7 +533,7 @@ src/
     data-store.ts                  # Core: DataStore (EventEmitter + Map, deduplication, FIFO)
     store.module.ts                # @Module
     store.service.ts               # @Injectable — wrapper over DataStore
-    store.controller.ts            # 12 REST endpoints + Swagger decorators
+    store.controller.ts            # 13 REST endpoints + Swagger decorators
     store.gateway.ts               # Socket.IO Gateway /store
     interfaces/
       data-point.interface.ts      # { t: number, v: number }
@@ -515,8 +546,8 @@ src/
     tests/
       data-store.spec.ts           # 26 tests — DataStore core
       store.service.spec.ts        # 16 tests — StoreService
-      store.controller.spec.ts     # 12 tests — StoreController
-      store.gateway.spec.ts        # 11 tests — StoreGateway
+      store.controller.spec.ts     # 14 tests — StoreController
+      store.gateway.spec.ts        # 18 tests — StoreGateway
 
 openapi.json                       # OpenAPI 3.0 spec (REST API)
 asyncapi.json                      # AsyncAPI 2.6 spec (WebSocket events)
