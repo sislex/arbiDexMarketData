@@ -30,7 +30,7 @@
 | WebSocket | Socket.IO (`@nestjs/platform-socket.io`) |
 | Документация | `@nestjs/swagger` + Swagger UI |
 | Конфигурация | `@nestjs/config` + `.env` |
-| Тесты | Jest (unit, 96 тестов) |
+| Тесты | Jest (unit, 102 теста) |
 | Контейнер | Docker + docker-compose |
 
 ---
@@ -383,9 +383,9 @@ curl http://localhost:3002/store/clients
 {
   "total": 2,
   "clients": [
-    { "id": "abc123", "subscribedKeys": ["binance|ETHUSDT|bidPrice", "mexc|ETHUSDT|askPrice"], "connectedAt": 1700000000000, "connectedForMs": 34200 },
-    { "id": "def456", "subscribedKeys": "all", "connectedAt": 1700000001000, "connectedForMs": 33200 },
-    { "id": "ghi789", "subscribedKeys": null, "connectedAt": 1700000002000, "connectedForMs": 32200 }
+    { "id": "abc123", "subscribedKeys": ["binance|ETHUSDT|bidPrice", "mexc|ETHUSDT|askPrice"], "connectedAt": 1700000000000, "connectedForMs": 34200, "remoteAddress": "192.168.1.10", "remotePort": 54321 },
+    { "id": "def456", "subscribedKeys": "all", "connectedAt": 1700000001000, "connectedForMs": 33200, "remoteAddress": "10.0.0.5", "remotePort": 60001 },
+    { "id": "ghi789", "subscribedKeys": null, "connectedAt": 1700000002000, "connectedForMs": 32200, "remoteAddress": "10.0.0.6", "remotePort": 49152 }
   ]
 }
 ```
@@ -399,6 +399,18 @@ curl http://localhost:3002/store/clients
 | `clients[].subscribedKeys` | `null` | Подключён, но ещё не подписан |
 | `clients[].connectedAt` | integer | Unix timestamp (мс) момента подключения |
 | `clients[].connectedForMs` | integer | Сколько миллисекунд клиент держит соединение |
+| `clients[].remoteAddress` | string \| null | IP-адрес клиента |
+| `clients[].remotePort` | integer \| null | Порт клиента |
+
+---
+
+#### `DELETE /store/clients/:id`
+Принудительно отключить клиента по socket ID. Возвращает `404`, если клиент не подключён.
+
+```bash
+curl -X DELETE "http://localhost:3002/store/clients/abc123"
+# → { "disconnected": true }
+```
 
 ---
 
@@ -537,7 +549,7 @@ src/
     data-store.ts                  # Ядро: DataStore (EventEmitter + Map, дедупликация, FIFO)
     store.module.ts                # @Module
     store.service.ts               # @Injectable — обёртка над DataStore
-    store.controller.ts            # 13 REST-эндпоинтов + Swagger декораторы
+    store.controller.ts            # 14 REST-эндпоинтов + Swagger декораторы
     store.gateway.ts               # Socket.IO Gateway /store
     interfaces/
       data-point.interface.ts      # { t: number, v: number }
@@ -550,8 +562,8 @@ src/
     tests/
       data-store.spec.ts           # 26 тестов ядра DataStore
       store.service.spec.ts        # 16 тестов StoreService
-      store.controller.spec.ts     # 14 тестов StoreController
-      store.gateway.spec.ts        # 18 тестов StoreGateway
+      store.controller.spec.ts     # 16 тестов StoreController
+      store.gateway.spec.ts        # 21 тестов StoreGateway
 
 openapi.json                       # OpenAPI 3.0 spec (REST API)
 asyncapi.json                      # AsyncAPI 2.6 spec (WebSocket events)

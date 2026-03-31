@@ -172,8 +172,9 @@ export class StoreController {
   @ApiOperation({
     summary: 'Get connected WebSocket clients',
     description:
-      'Returns the number of currently connected WebSocket clients and the keys each client is subscribed to. ' +
-      '`subscribedKeys` is `null` when a client is connected but has not subscribed yet, ' +
+      'Returns all currently connected WebSocket clients with their socket ID, ' +
+      'remote IP, remote port, subscription state, and connection duration. ' +
+      '`subscribedKeys` is `null` when connected but not yet subscribed, ' +
       '`"all"` when subscribed to all keys, or an array of specific key strings.',
   })
   @ApiResponse({
@@ -183,14 +184,29 @@ export class StoreController {
       example: {
         total: 2,
         clients: [
-          { id: 'abc123', subscribedKeys: ['binance|ETHUSDT|bidPrice', 'mexc|ETHUSDT|askPrice'], connectedAt: 1700000000000, connectedForMs: 34200 },
-          { id: 'def456', subscribedKeys: 'all', connectedAt: 1700000001000, connectedForMs: 33200 },
+          { id: 'abc123', subscribedKeys: ['binance|ETHUSDT|bidPrice'], connectedAt: 1700000000000, connectedForMs: 34200, remoteAddress: '192.168.1.10', remotePort: 54321 },
+          { id: 'def456', subscribedKeys: 'all', connectedAt: 1700000001000, connectedForMs: 33200, remoteAddress: '10.0.0.5', remotePort: 60001 },
         ],
       },
     },
   })
   getConnectedClients(): any {
     return this.storeGateway.getConnectedClients();
+  }
+
+  // ── DELETE /store/clients/:id ─────────────────────────────────
+  @Delete('clients/:id')
+  @ApiOperation({
+    summary: 'Disconnect a WebSocket client by socket ID',
+    description: 'Forcefully disconnects the specified client. Returns 404 if the client is not connected.',
+  })
+  @ApiParam({ name: 'id', description: 'Socket ID of the client to disconnect', example: 'abc123' })
+  @ApiResponse({ status: 200, description: 'Client disconnected', schema: { example: { disconnected: true } } })
+  @ApiResponse({ status: 404, description: 'Client not found' })
+  disconnectClient(@Param('id') id: string): { disconnected: boolean } {
+    const ok = this.storeGateway.disconnectClient(id);
+    if (!ok) throw new NotFoundException(`Client not found: ${id}`);
+    return { disconnected: true };
   }
 }
 

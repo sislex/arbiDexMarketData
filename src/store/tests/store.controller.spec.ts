@@ -25,6 +25,7 @@ const mockStoreService = () => ({
 
 const mockStoreGateway = () => ({
   getConnectedClients: jest.fn(),
+  disconnectClient: jest.fn(),
 });
 
 describe('StoreController', () => {
@@ -202,8 +203,8 @@ describe('StoreController', () => {
       const report = {
         total: 2,
         clients: [
-          { id: 'abc', subscribedKeys: ['binance|ETHUSDT|bidPrice'], connectedAt: 1700000000000, connectedForMs: 5000 },
-          { id: 'def', subscribedKeys: 'all', connectedAt: 1700000001000, connectedForMs: 4000 },
+          { id: 'abc', subscribedKeys: ['binance|ETHUSDT|bidPrice'], connectedAt: 1700000000000, connectedForMs: 5000, remoteAddress: '10.0.0.1', remotePort: 54321 },
+          { id: 'def', subscribedKeys: 'all', connectedAt: 1700000001000, connectedForMs: 4000, remoteAddress: '10.0.0.2', remotePort: 60001 },
         ],
       };
       gateway.getConnectedClients.mockReturnValue(report);
@@ -215,6 +216,20 @@ describe('StoreController', () => {
     it('should return empty report when no clients connected', () => {
       gateway.getConnectedClients.mockReturnValue({ total: 0, clients: [] });
       expect(controller.getConnectedClients()).toEqual({ total: 0, clients: [] });
+    });
+  });
+
+  // ── DELETE /store/clients/:id ─────────────────────────────────
+  describe('disconnectClient', () => {
+    it('should return disconnected: true when client exists', () => {
+      gateway.disconnectClient.mockReturnValue(true);
+      expect(controller.disconnectClient('abc123')).toEqual({ disconnected: true });
+      expect(gateway.disconnectClient).toHaveBeenCalledWith('abc123');
+    });
+
+    it('should throw NotFoundException when client not found', () => {
+      gateway.disconnectClient.mockReturnValue(false);
+      expect(() => controller.disconnectClient('unknown')).toThrow(NotFoundException);
     });
   });
 });

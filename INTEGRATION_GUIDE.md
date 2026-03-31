@@ -30,7 +30,7 @@ The service acts as the **central market data hub** for the ArbiDex ecosystem:
 | WebSocket | Socket.IO (`@nestjs/platform-socket.io`) |
 | Documentation | `@nestjs/swagger` + Swagger UI |
 | Configuration | `@nestjs/config` + `.env` |
-| Tests | Jest (unit, 96 tests) |
+| Tests | Jest (unit, 102 tests) |
 | Container | Docker + docker-compose |
 
 ---
@@ -381,9 +381,9 @@ curl http://localhost:3002/store/clients
 {
   "total": 2,
   "clients": [
-    { "id": "abc123", "subscribedKeys": ["binance|ETHUSDT|bidPrice", "mexc|ETHUSDT|askPrice"], "connectedAt": 1700000000000, "connectedForMs": 34200 },
-    { "id": "def456", "subscribedKeys": "all", "connectedAt": 1700000001000, "connectedForMs": 33200 },
-    { "id": "ghi789", "subscribedKeys": null, "connectedAt": 1700000002000, "connectedForMs": 32200 }
+    { "id": "abc123", "subscribedKeys": ["binance|ETHUSDT|bidPrice", "mexc|ETHUSDT|askPrice"], "connectedAt": 1700000000000, "connectedForMs": 34200, "remoteAddress": "192.168.1.10", "remotePort": 54321 },
+    { "id": "def456", "subscribedKeys": "all", "connectedAt": 1700000001000, "connectedForMs": 33200, "remoteAddress": "10.0.0.5", "remotePort": 60001 },
+    { "id": "ghi789", "subscribedKeys": null, "connectedAt": 1700000002000, "connectedForMs": 32200, "remoteAddress": "10.0.0.6", "remotePort": 49152 }
   ]
 }
 ```
@@ -397,6 +397,18 @@ curl http://localhost:3002/store/clients
 | `clients[].subscribedKeys` | `null` | Connected but not yet subscribed |
 | `clients[].connectedAt` | integer | Unix timestamp (ms) when the client connected |
 | `clients[].connectedForMs` | integer | Milliseconds the client has been connected |
+| `clients[].remoteAddress` | string \| null | Remote IP address of the client |
+| `clients[].remotePort` | integer \| null | Remote port of the client |
+
+---
+
+#### `DELETE /store/clients/:id`
+Forcefully disconnect a specific client by socket ID. Returns `404` if the client is not connected.
+
+```bash
+curl -X DELETE "http://localhost:3002/store/clients/abc123"
+# → { "disconnected": true }
+```
 
 ---
 
@@ -535,7 +547,7 @@ src/
     data-store.ts                  # Core: DataStore (EventEmitter + Map, deduplication, FIFO)
     store.module.ts                # @Module
     store.service.ts               # @Injectable — wrapper over DataStore
-    store.controller.ts            # 13 REST endpoints + Swagger decorators
+    store.controller.ts            # 14 REST endpoints + Swagger decorators
     store.gateway.ts               # Socket.IO Gateway /store
     interfaces/
       data-point.interface.ts      # { t: number, v: number }
@@ -548,8 +560,8 @@ src/
     tests/
       data-store.spec.ts           # 26 tests — DataStore core
       store.service.spec.ts        # 16 tests — StoreService
-      store.controller.spec.ts     # 14 tests — StoreController
-      store.gateway.spec.ts        # 18 tests — StoreGateway
+      store.controller.spec.ts     # 16 tests — StoreController
+      store.gateway.spec.ts        # 21 tests — StoreGateway
 
 openapi.json                       # OpenAPI 3.0 spec (REST API)
 asyncapi.json                      # AsyncAPI 2.6 spec (WebSocket events)

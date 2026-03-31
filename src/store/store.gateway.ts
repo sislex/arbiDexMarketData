@@ -18,6 +18,10 @@ export interface ClientInfo {
   connectedAt: number;
   /** How long the client has been connected, in milliseconds */
   connectedForMs: number;
+  /** Remote IP address of the client */
+  remoteAddress: string | null;
+  /** Remote port of the client */
+  remotePort: number | null;
 }
 
 export interface ConnectedClientsReport {
@@ -39,6 +43,9 @@ export class StoreGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
   /** socketId → connection timestamp (ms) */
   private readonly clientConnectedAt = new Map<string, number>();
+
+  /** socketId → remote address info */
+  private readonly clientAddresses = new Map<string, { ip: string | null; port: number | null }>();
 
   private readonly apiKey: string | undefined;
 
@@ -74,6 +81,10 @@ export class StoreGateway implements OnGatewayConnection, OnGatewayDisconnect {
 
     this.clientKeys.set(client.id, null);
     this.clientConnectedAt.set(client.id, Date.now());
+    this.clientAddresses.set(client.id, {
+      ip: client.handshake?.address ?? null,
+      port: (client.request?.socket as any)?.remotePort ?? null,
+    });
   }
 
   @SubscribeMessage('subscribe')
@@ -128,6 +139,7 @@ export class StoreGateway implements OnGatewayConnection, OnGatewayDisconnect {
     this.subscriptions.delete(client.id);
     this.clientKeys.delete(client.id);
     this.clientConnectedAt.delete(client.id);
+    this.clientAddresses.delete(client.id);
   }
 
   /** Returns info about all currently connected WebSocket clients. */
@@ -136,13 +148,27 @@ export class StoreGateway implements OnGatewayConnection, OnGatewayDisconnect {
     const clients: ClientInfo[] = [];
     for (const [id, subscribedKeys] of this.clientKeys) {
       const connectedAt = this.clientConnectedAt.get(id) ?? now;
+      const addr = this.clientAddresses.get(id);
       clients.push({
         id,
         subscribedKeys,
         connectedAt,
         connectedForMs: now - connectedAt,
+        remoteAddress: addr?.ip ?? null,
+        remotePort: addr?.port ?? null,
       });
     }
     return { total: clients.length, clients };
+  }
+
+  /**
+   * Forcefully disconnect a client by socket ID.
+   * @returns true if the client was found and disconnected, false if not found.
+   */
+  disconnectClient(id: string): boolean {
+    const socket = this.server?.sockets?.get(id);
+    if (!socket) return false;
+    socket.disconnect(true);
+    return true;
   }
 }

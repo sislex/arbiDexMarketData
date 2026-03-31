@@ -19,7 +19,7 @@ stores history (up to 100 000 points per key, FIFO), and delivers data to consum
 | REST Docs | `@nestjs/swagger` + Swagger UI |
 | WS Docs | AsyncAPI 2.6 (`asyncapi.json`) |
 | Configuration | `@nestjs/config` + `.env` |
-| Tests | Jest — 96 unit tests |
+| Tests | Jest — 102 unit tests |
 | Container | Docker + docker-compose |
 
 ---
@@ -107,6 +107,7 @@ const socket = io('http://localhost:3002/store', { query: { api_key: '<key>' } }
 | `GET` | `/store/key/:key/memory` | Memory usage for a single key |
 | `POST` | `/store/memory/keys` | Memory usage for a list of keys |
 | `GET` | `/store/clients` | Connected WebSocket clients and their subscriptions |
+| `DELETE` | `/store/clients/:id` | Disconnect a client by socket ID |
 
 Full parameter and response descriptions — [INTEGRATION_GUIDE.md](./INTEGRATION_GUIDE.md#5-rest-api).
 

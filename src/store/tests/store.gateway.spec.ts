@@ -4,14 +4,16 @@ import { StoreGateway } from '../store.gateway';
 import { StoreService } from '../store.service';
 
 /** Minimal mock Socket */
-const makeClient = (id = 'socket1', authKey?: string, queryKey?: string) => ({
+const makeClient = (id = 'socket1', authKey?: string, queryKey?: string, ip = '127.0.0.1', port = 54321) => ({
   id,
   emit: jest.fn(),
   disconnect: jest.fn(),
   handshake: {
+    address: ip,
     auth: authKey !== undefined ? { apiKey: authKey } : {},
     query: queryKey !== undefined ? { api_key: queryKey } : {},
   },
+  request: { socket: { remotePort: port } },
 });
 
 const mockStoreService = () => ({
@@ -209,7 +211,7 @@ describe('StoreGateway', () => {
     });
 
     it('should show client with null subscribedKeys after connection', () => {
-      const client = makeClient('c1');
+      const client = makeClient('c1', undefined, undefined, '10.0.0.1', 12345);
       gateway.handleConnection(client as any);
 
       const report = gateway.getConnectedClients();
@@ -218,6 +220,8 @@ describe('StoreGateway', () => {
       expect(report.clients[0].subscribedKeys).toBeNull();
       expect(report.clients[0].connectedAt).toBeGreaterThan(0);
       expect(report.clients[0].connectedForMs).toBeGreaterThanOrEqual(0);
+      expect(report.clients[0].remoteAddress).toBe('10.0.0.1');
+      expect(report.clients[0].remotePort).toBe(12345);
     });
 
     it('should show client with specific keys after subscribe', () => {
@@ -294,11 +298,37 @@ describe('StoreGateway', () => {
       expect(byId['c1'].subscribedKeys).toEqual(['k1']);
       expect(byId['c2'].subscribedKeys).toBe('all');
       expect(byId['c3'].subscribedKeys).toBeNull();
-      // all should have timing fields
+      // all should have timing and address fields
       for (const id of ['c1', 'c2', 'c3']) {
         expect(byId[id].connectedAt).toBeGreaterThan(0);
         expect(byId[id].connectedForMs).toBeGreaterThanOrEqual(0);
+        expect(byId[id].remoteAddress).toBe('127.0.0.1');
+        expect(byId[id].remotePort).toBe(54321);
       }
+    });
+  });
+
+  // ── disconnectClient ──────────────────────────────────────────
+  describe('disconnectClient', () => {
+    it('should return false when client not found', () => {
+      (gateway as any).server = { sockets: new Map() };
+      expect(gateway.disconnectClient('unknown')).toBe(false);
+    });
+
+    it('should disconnect the socket and return true when found', () => {
+      const mockSocket = { disconnect: jest.fn() };
+      const sockets = new Map([['c1', mockSocket]]);
+      (gateway as any).server = { sockets };
+
+      const result = gateway.disconnectClient('c1');
+
+      expect(result).toBe(true);
+      expect(mockSocket.disconnect).toHaveBeenCalledWith(true);
+    });
+
+    it('should return false when server is not initialized', () => {
+      (gateway as any).server = undefined;
+      expect(gateway.disconnectClient('c1')).toBe(false);
     });
   });
 });
