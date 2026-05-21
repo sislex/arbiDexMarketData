@@ -218,6 +218,48 @@ describe('DataStore', () => {
     });
   });
 
+  // ── getKeysInfo ─────────────────────────────────────────────
+  describe('getKeysInfo', () => {
+    beforeEach(() => {
+      store.record('a', 1, 1000);
+      store.record('a', 2, 2000);
+      store.record('b', 10, 3000);
+    });
+
+    it('should return objects with key only when no flags', () => {
+      const info = store.getKeysInfo();
+      expect(info).toHaveLength(2);
+      expect(info[0]).toEqual({ key: 'a' });
+      expect(info[1]).toEqual({ key: 'b' });
+    });
+
+    it('should include points and timestamps when detail=true', () => {
+      const info = store.getKeysInfo({ detail: true });
+      expect(info[0]).toMatchObject({ key: 'a', points: 2, firstTimestamp: 1000, lastTimestamp: 2000 });
+      expect(info[1]).toMatchObject({ key: 'b', points: 1, firstTimestamp: 3000, lastTimestamp: 3000 });
+    });
+
+    it('should include bytes when memory=true', () => {
+      const info = store.getKeysInfo({ memory: true });
+      expect(info[0].bytes).toBeGreaterThan(0);
+      expect(info[0].bytesHuman).toMatch(/B|KB|MB/);
+      expect(info[0]).not.toHaveProperty('points');
+    });
+
+    it('should include both detail and memory when both flags are true', () => {
+      const info = store.getKeysInfo({ detail: true, memory: true });
+      expect(info[0]).toHaveProperty('points');
+      expect(info[0]).toHaveProperty('bytes');
+      expect(info[0]).toHaveProperty('bytesHuman');
+      expect(info[0]).toHaveProperty('firstTimestamp');
+    });
+
+    it('should return empty array for empty store', () => {
+      store.clear();
+      expect(store.getKeysInfo({ detail: true, memory: true })).toEqual([]);
+    });
+  });
+
   // ── memory usage ──────────────────────────────────────────────
   describe('getKeyMemoryUsage', () => {
     it('should return null for unknown key', () => {

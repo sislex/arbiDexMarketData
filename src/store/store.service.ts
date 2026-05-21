@@ -40,6 +40,10 @@ export class StoreService {
     return this.dataStore.getKeys();
   }
 
+  getKeysInfo(opts?: { detail?: boolean; memory?: boolean }): any[] {
+    return this.dataStore.getKeysInfo(opts);
+  }
+
   deleteSeries(key: string): void {
     this.dataStore.deleteSeries(key);
   }
@@ -65,6 +69,20 @@ export class StoreService {
       acc[key] = this.dataStore.getLastPoint(key);
       return acc;
     }, {});
+  }
+
+  getRecentSnapshot(opts?: SeriesQueryOpts): Record<string, { points: DataPoint[]; count: number }> {
+    const result: Record<string, { points: DataPoint[]; count: number }> = {};
+    const queryOpts: SeriesQueryOpts = {
+      from: opts?.from,
+      to: opts?.to,
+      limit: opts?.limit ?? 100,
+    };
+    for (const key of this.dataStore.getKeys()) {
+      const points = this.dataStore.getSeries(key, queryOpts);
+      result[key] = { points, count: points.length };
+    }
+    return result;
   }
 
   getKeyMemoryUsage(key: string): KeyMemoryUsage | null {

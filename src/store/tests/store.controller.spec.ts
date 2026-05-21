@@ -11,6 +11,7 @@ import { MemoryQueryDto } from '../dto/memory-query.dto';
 
 const mockStoreService = () => ({
   getKeys: jest.fn(),
+  getKeysInfo: jest.fn(),
   getSnapshot: jest.fn(),
   getLastPoint: jest.fn(),
   getSeries: jest.fn(),
@@ -21,6 +22,7 @@ const mockStoreService = () => ({
   getTotalMemoryUsage: jest.fn(),
   getKeyMemoryUsage: jest.fn(),
   getMemoryUsageForKeys: jest.fn(),
+  getRecentSnapshot: jest.fn(),
 });
 
 const mockStoreGateway = () => ({
@@ -51,10 +53,32 @@ describe('StoreController', () => {
 
   // ── GET /store/keys ──────────────────────────────────────────
   describe('getKeys', () => {
-    it('should return array of keys', () => {
+    it('should return plain array of keys when no flags', () => {
       service.getKeys.mockReturnValue(['a', 'b']);
-      expect(controller.getKeys()).toEqual(['a', 'b']);
+      expect(controller.getKeys({})).toEqual(['a', 'b']);
       expect(service.getKeys).toHaveBeenCalledTimes(1);
+      expect(service.getKeysInfo).not.toHaveBeenCalled();
+    });
+
+    it('should return enriched info when detail=true', () => {
+      const info = [{ key: 'a', points: 2, firstTimestamp: 1000, lastTimestamp: 2000 }];
+      service.getKeysInfo.mockReturnValue(info);
+      expect(controller.getKeys({ detail: true })).toEqual(info);
+      expect(service.getKeysInfo).toHaveBeenCalledWith({ detail: true, memory: undefined });
+    });
+
+    it('should return enriched info when memory=true', () => {
+      const info = [{ key: 'a', bytes: 100, bytesHuman: '100 B' }];
+      service.getKeysInfo.mockReturnValue(info);
+      expect(controller.getKeys({ memory: true })).toEqual(info);
+      expect(service.getKeysInfo).toHaveBeenCalledWith({ detail: undefined, memory: true });
+    });
+
+    it('should return enriched info when both flags are true', () => {
+      const info = [{ key: 'a', points: 2, firstTimestamp: 1000, lastTimestamp: 2000, bytes: 100, bytesHuman: '100 B' }];
+      service.getKeysInfo.mockReturnValue(info);
+      expect(controller.getKeys({ detail: true, memory: true })).toEqual(info);
+      expect(service.getKeysInfo).toHaveBeenCalledWith({ detail: true, memory: true });
     });
   });
 
@@ -64,6 +88,22 @@ describe('StoreController', () => {
       const snap = { a: { t: 1000, v: 10 } };
       service.getSnapshot.mockReturnValue(snap);
       expect(controller.getSnapshot()).toEqual(snap);
+    });
+  });
+
+  // ── GET /store/snapshot/recent ─────────────────────────────────
+  describe('getRecentSnapshot', () => {
+    it('should call with default limit 100 and no time range', () => {
+      const snap = { a: { points: [{ t: 1000, v: 1 }], count: 1 } };
+      service.getRecentSnapshot.mockReturnValue(snap);
+      expect(controller.getRecentSnapshot({} as any)).toEqual(snap);
+      expect(service.getRecentSnapshot).toHaveBeenCalledWith({ from: undefined, to: undefined, limit: 100 });
+    });
+
+    it('should pass custom limit and time range', () => {
+      service.getRecentSnapshot.mockReturnValue({});
+      controller.getRecentSnapshot({ limit: 50, from: 1000, to: 5000 } as any);
+      expect(service.getRecentSnapshot).toHaveBeenCalledWith({ from: 1000, to: 5000, limit: 50 });
     });
   });
 

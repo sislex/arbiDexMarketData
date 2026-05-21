@@ -22,6 +22,7 @@ import { WriteBatchDto } from './dto/write-batch.dto';
 import { QuerySeriesDto } from './dto/query-series.dto';
 import { KeysQueryDto } from './dto/keys-query.dto';
 import { MemoryQueryDto } from './dto/memory-query.dto';
+import { KeysListQueryDto } from './dto/keys-list-query.dto';
 
 @ApiTags('store')
 @Controller('store')
@@ -33,9 +34,18 @@ export class StoreController {
 
   // ── GET /store/keys ────────────────────────────────────────
   @Get('keys')
-  @ApiOperation({ summary: 'Get all keys that have data' })
-  @ApiResponse({ status: 200, description: 'Array of key strings' })
-  getKeys(): string[] {
+  @ApiOperation({
+    summary: 'Get all keys, optionally with point count and memory usage',
+    description:
+      'Without query params returns a plain string array (backward-compatible). ' +
+      '`?detail=true` adds point count and first/last timestamps per key. ' +
+      '`?memory=true` adds estimated memory usage per key. Both flags can be combined.',
+  })
+  @ApiResponse({ status: 200, description: 'Array of keys (plain strings or enriched objects)' })
+  getKeys(@Query() query: KeysListQueryDto): any {
+    if (query.detail || query.memory) {
+      return this.storeService.getKeysInfo({ detail: query.detail, memory: query.memory });
+    }
     return this.storeService.getKeys();
   }
 
@@ -45,6 +55,23 @@ export class StoreController {
   @ApiResponse({ status: 200, description: 'Map of key → last DataPoint | null' })
   getSnapshot(): Record<string, any> {
     return this.storeService.getSnapshot();
+  }
+
+  // ── GET /store/snapshot/recent ─────────────────────────────
+  @Get('snapshot/recent')
+  @ApiOperation({
+    summary: 'Get recent snapshot: all keys with their last N points',
+    description:
+      'Like `/store/snapshot` but returns last `limit` points per key instead of just one. ' +
+      'Supports `from` / `to` timestamp filtering. Default limit is 100.',
+  })
+  @ApiResponse({ status: 200, description: 'Map of key → { points, count }' })
+  getRecentSnapshot(@Query() query: QuerySeriesDto): Record<string, any> {
+    return this.storeService.getRecentSnapshot({
+      from: query.from,
+      to: query.to,
+      limit: query.limit ?? 100,
+    });
   }
 
   // ── GET /store/key/:key/latest ─────────────────────────────

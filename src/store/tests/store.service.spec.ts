@@ -89,6 +89,24 @@ describe('StoreService', () => {
     });
   });
 
+  // ── getKeysInfo ────────────────────────────────────────────
+  describe('getKeysInfo', () => {
+    it('should return enriched key info with detail flag', () => {
+      service.write('a', 10, 1000);
+      service.write('a', 20, 2000);
+      const info = service.getKeysInfo({ detail: true });
+      expect(info).toHaveLength(1);
+      expect(info[0]).toMatchObject({ key: 'a', points: 2, firstTimestamp: 1000, lastTimestamp: 2000 });
+    });
+
+    it('should return enriched key info with memory flag', () => {
+      service.write('a', 10, 1000);
+      const info = service.getKeysInfo({ memory: true });
+      expect(info[0].bytes).toBeGreaterThan(0);
+      expect(info[0].bytesHuman).toBeDefined();
+    });
+  });
+
   // ── deleteSeries ─────────────────────────────────────────────
   describe('deleteSeries', () => {
     it('should remove key', () => {
@@ -117,6 +135,54 @@ describe('StoreService', () => {
       const snap = service.getSnapshot();
       expect(snap['a']).toEqual({ t: 2000, v: 20 });
       expect(snap['b']).toEqual({ t: 3000, v: 99 });
+    });
+  });
+
+  // ── getRecentSnapshot ──────────────────────────────────────────
+  describe('getRecentSnapshot', () => {
+    it('should return last N points per key', () => {
+      service.write('a', 1, 1000);
+      service.write('a', 2, 2000);
+      service.write('a', 3, 3000);
+      service.write('b', 10, 4000);
+
+      const snap = service.getRecentSnapshot({ limit: 2 });
+      expect(snap['a'].points).toHaveLength(2);
+      expect(snap['a'].points[0].v).toBe(2);
+      expect(snap['a'].points[1].v).toBe(3);
+      expect(snap['a'].count).toBe(2);
+      expect(snap['b'].points).toHaveLength(1);
+      expect(snap['b'].count).toBe(1);
+    });
+
+    it('should default to 100 limit', () => {
+      service.write('x', 1, 1000);
+      const snap = service.getRecentSnapshot();
+      expect(snap['x'].count).toBe(1);
+    });
+
+    it('should filter by from/to timestamps', () => {
+      service.write('a', 1, 1000);
+      service.write('a', 2, 2000);
+      service.write('a', 3, 3000);
+      service.write('a', 4, 4000);
+
+      const snap = service.getRecentSnapshot({ from: 2000, to: 3000 });
+      expect(snap['a'].points).toHaveLength(2);
+      expect(snap['a'].points[0].v).toBe(2);
+      expect(snap['a'].points[1].v).toBe(3);
+    });
+
+    it('should combine from/to with limit', () => {
+      service.write('a', 1, 1000);
+      service.write('a', 2, 2000);
+      service.write('a', 3, 3000);
+      service.write('a', 4, 4000);
+
+      const snap = service.getRecentSnapshot({ from: 1000, to: 4000, limit: 2 });
+      expect(snap['a'].points).toHaveLength(2);
+      expect(snap['a'].points[0].v).toBe(3);
+      expect(snap['a'].points[1].v).toBe(4);
     });
   });
 

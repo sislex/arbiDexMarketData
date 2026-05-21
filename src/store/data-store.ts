@@ -139,6 +139,29 @@ export class DataStore {
     return Array.from(this.store.keys());
   }
 
+  /**
+   * Extended key listing with optional point count and memory info.
+   * Without flags behaves like getKeys() but returns objects.
+   */
+  getKeysInfo(opts?: { detail?: boolean; memory?: boolean }): any[] {
+    const result: any[] = [];
+    for (const [key, series] of this.store) {
+      const entry: any = { key };
+      if (opts?.detail) {
+        entry.points = series.length;
+        entry.firstTimestamp = series.length > 0 ? series[0].t : null;
+        entry.lastTimestamp = series.length > 0 ? series[series.length - 1].t : null;
+      }
+      if (opts?.memory) {
+        const bytes = estimateKeyBytes(key, series);
+        entry.bytes = bytes;
+        entry.bytesHuman = formatBytes(bytes);
+      }
+      result.push(entry);
+    }
+    return result;
+  }
+
   /** Delete all data for a key. */
   deleteSeries(key: string): void {
     this.store.delete(key);
@@ -225,4 +248,3 @@ export class DataStore {
     };
   }
 }
-
