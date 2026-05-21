@@ -260,6 +260,76 @@ describe('DataStore', () => {
     });
   });
 
+  // ── serialize / restore ─────────────────────────────────────
+  describe('serialize / restore', () => {
+    it('should export a JSON-serializable copy of all series', () => {
+      store.record('a', 1, 1000);
+      store.record('a', 2, 2000);
+      store.record('b', 10, 3000);
+
+      expect(store.serialize()).toEqual({
+        a: [{ t: 1000, v: 1 }, { t: 2000, v: 2 }],
+        b: [{ t: 3000, v: 10 }],
+      });
+    });
+
+    it('should restore snapshot without emitting change events', () => {
+      const cb = jest.fn();
+      store.onAnyChange(cb);
+
+      store.restore({
+        a: [{ t: 1000, v: 1 }, { t: 2000, v: 2 }],
+      });
+
+      expect(store.getSeries('a')).toEqual([{ t: 1000, v: 1 }, { t: 2000, v: 2 }]);
+      expect(cb).not.toHaveBeenCalled();
+    });
+
+    it('should keep only latest limitPerKey points on restore', () => {
+      store.restore({
+        a: [
+          { t: 1000, v: 1 },
+          { t: 2000, v: 2 },
+          { t: 3000, v: 3 },
+          { t: 4000, v: 4 },
+        ],
+      }, { limitPerKey: 2 });
+
+      expect(store.getSeries('a')).toEqual([{ t: 3000, v: 3 }, { t: 4000, v: 4 }]);
+    });
+
+    it('should also respect maxPoints while restoring', () => {
+      const smallStore = new DataStore(2);
+      smallStore.restore({
+        a: [
+          { t: 1000, v: 1 },
+          { t: 2000, v: 2 },
+          { t: 3000, v: 3 },
+        ],
+      }, { limitPerKey: 10 });
+
+      expect(smallStore.getSeries('a')).toEqual([{ t: 2000, v: 2 }, { t: 3000, v: 3 }]);
+    });
+
+    it('should skip invalid keys and points while restoring', () => {
+      store.restore({
+        valid: [{ t: 1000, v: 1 }, { t: 'bad', v: 2 }, null, { t: 3000, v: Number.NaN }],
+        empty: [],
+        broken: 'not-array',
+      });
+
+      expect(store.getKeys()).toEqual(['valid']);
+      expect(store.getSeries('valid')).toEqual([{ t: 1000, v: 1 }]);
+    });
+
+    it('should clear existing data when snapshot is invalid', () => {
+      store.record('old', 1, 1000);
+      store.restore(null);
+
+      expect(store.getKeys()).toEqual([]);
+    });
+  });
+
   // ── memory usage ──────────────────────────────────────────────
   describe('getKeyMemoryUsage', () => {
     it('should return null for unknown key', () => {

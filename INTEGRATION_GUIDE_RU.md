@@ -17,7 +17,8 @@
 Сервис является **центральным хабом рыночных данных** для экосистемы ArbiDex:
 
 - Принимает котировки от **arbiDexServerBots** (и любых других продюсеров) через REST или WebSocket
-- Хранит историю цен (до 100 000 точек на ключ, FIFO)
+- Хранит горячую историю цен в RAM (до 100 000 точек на ключ, FIFO)
+- Сохраняет RAM-данные в JSON snapshot каждые 10 секунд и восстанавливает последние точки при запуске
 - Раздаёт данные потребителям — торговым ботам, дашбордам, аналитическим агентам
 - Поддерживает **real-time подписки** через Socket.IO
 
@@ -30,7 +31,7 @@
 | WebSocket | Socket.IO (`@nestjs/platform-socket.io`) |
 | Документация | `@nestjs/swagger` + Swagger UI |
 | Конфигурация | `@nestjs/config` + `.env` |
-| Тесты | Jest (unit, 102 теста) |
+| Тесты | Jest unit-тесты |
 | Контейнер | Docker + docker-compose |
 
 ---
@@ -63,7 +64,47 @@ npm run test:cov        # с покрытием
 |---|---|---|
 | `PORT` | `3002` | HTTP/WS порт сервера |
 | `MAX_POINTS_PER_KEY` | `100000` | Максимум точек на ключ (FIFO-кольцо) |
+| `SNAPSHOT_PATH` | `./data/store.snapshot.json` | JSON snapshot-файл для autosave/restore |
+| `AUTOSAVE_INTERVAL_MS` | `10000` | Интервал autosave в миллисекундах |
+| `RESTORE_POINTS_PER_KEY` | `10000` | При запуске восстановить только последние N точек по каждому ключу |
+| `SNAPSHOT_CHUNK_BYTES` | `10485760` | Примерный максимальный размер каждой части snapshot (10 MB) |
+| `SOURCE_URL` | `http://45.135.182.251:3002` | URL исходного сервиса для `npm run snapshot:pull` |
 | `API_KEY` | _(пусто)_ | API-ключ. Если не задан — аутентификация отключена (dev-режим) |
+
+### Поведение persistence
+
+Хранилище оптимизировано для быстрого доступа из RAM, но runtime-данные также сохраняются на диск:
+
+- при запуске сервис пытается прочитать `SNAPSHOT_PATH`;
+- по каждому ключу восстанавливаются только последние `RESTORE_POINTS_PER_KEY` точек;
+- autosave записывает полный JSON snapshot каждые `AUTOSAVE_INTERVAL_MS` миллисекунд;
+- snapshot записывается как manifest-файл плюс `*.part-*.json` chunk-файлы; каждая часть по возможности примерно до `SNAPSHOT_CHUNK_BYTES` (10 MB);
+- запись snapshot атомарная: сначала пишется временный файл, затем выполняется rename;
+- Docker монтирует `./data:/app/data`, поэтому default snapshot сохраняется при пересоздании контейнера.
+
+### Миграция кэша из старого deployment
+
+Если старый запущенный сервис ещё не имеет autosave, выгрузите его текущий RAM-кэш через REST API в snapshot-файл нового формата:
+
+```bash
+npm run snapshot:pull
+```
+
+Команда читает `SOURCE_URL` из `.env`. Используйте base API URL: `http://45.135.182.251:3002`. Если случайно указать Swagger URL с `/api`, `/api` будет удалён автоматически.
+
+При необходимости значения можно переопределить inline:
+
+```bash
+SOURCE_URL=http://old-host:3002 SNAPSHOT_PATH=./data/store.snapshot.json RESTORE_POINTS_PER_KEY=10000 SNAPSHOT_CHUNK_BYTES=10485760 npm run snapshot:pull
+```
+
+Если включена аутентификация по API key:
+
+```bash
+SOURCE_URL=http://old-host:3002 API_KEY=ваш-секретный-ключ npm run snapshot:pull
+```
+
+Команда читает `/store/keys`, затем `/store/key/:key?limit=RESTORE_POINTS_PER_KEY` по каждому ключу, записывает `SNAPSHOT_PATH` плюс chunk-файлы и печатает memory report в таком же формате, как `GET /store/memory`. После создания файлов можно запускать новый контейнер — он восстановит кэш при старте.
 
 ---
 

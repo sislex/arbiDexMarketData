@@ -6,6 +6,7 @@ import {
   SeriesQueryOpts,
   KeyMemoryUsage,
   MemoryUsageReport,
+  StoreSnapshotData,
 } from './data-store';
 import { DataPoint } from './interfaces/data-point.interface';
 
@@ -42,6 +43,14 @@ export class StoreService {
 
   getKeysInfo(opts?: { detail?: boolean; memory?: boolean }): any[] {
     return this.dataStore.getKeysInfo(opts);
+  }
+
+  exportSnapshot(): StoreSnapshotData {
+    return this.dataStore.serialize();
+  }
+
+  restoreSnapshot(data: unknown, opts?: { limitPerKey?: number }): void {
+    this.dataStore.restore(data, opts);
   }
 
   deleteSeries(key: string): void {

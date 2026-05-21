@@ -107,6 +107,34 @@ describe('StoreService', () => {
     });
   });
 
+  // ── exportSnapshot / restoreSnapshot ────────────────────────
+  describe('exportSnapshot / restoreSnapshot', () => {
+    it('should export and restore store data', () => {
+      service.write('a', 10, 1000);
+      service.write('a', 20, 2000);
+      service.write('b', 30, 3000);
+
+      const snapshot = service.exportSnapshot();
+      service.clear();
+      service.restoreSnapshot(snapshot);
+
+      expect(service.getSeries('a')).toEqual([{ t: 1000, v: 10 }, { t: 2000, v: 20 }]);
+      expect(service.getSeries('b')).toEqual([{ t: 3000, v: 30 }]);
+    });
+
+    it('should keep only latest limitPerKey points while restoring', () => {
+      service.restoreSnapshot({
+        a: [
+          { t: 1000, v: 1 },
+          { t: 2000, v: 2 },
+          { t: 3000, v: 3 },
+        ],
+      }, { limitPerKey: 2 });
+
+      expect(service.getSeries('a')).toEqual([{ t: 2000, v: 2 }, { t: 3000, v: 3 }]);
+    });
+  });
+
   // ── deleteSeries ─────────────────────────────────────────────
   describe('deleteSeries', () => {
     it('should remove key', () => {

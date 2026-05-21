@@ -33,6 +33,13 @@ export interface MemoryUsageReport {
   };
 }
 
+export type StoreSnapshotData = Record<string, DataPoint[]>;
+
+export interface RestoreStoreOpts {
+  /** Keep only the latest N points per key while restoring. */
+  limitPerKey?: number;
+}
+
 function formatBytes(bytes: number): string {
   if (bytes < 1_024) return `${bytes} B`;
   if (bytes < 1_048_576) return `${(bytes / 1_024).toFixed(2)} KB`;
@@ -137,6 +144,49 @@ export class DataStore {
   /** All keys that have data. */
   getKeys(): string[] {
     return Array.from(this.store.keys());
+  }
+
+  /**
+   * Export a JSON-serializable copy of the whole store.
+   */
+  serialize(): StoreSnapshotData {
+    const snapshot: StoreSnapshotData = {};
+    for (const [key, series] of this.store) {
+      snapshot[key] = series.map((p) => ({ t: p.t, v: p.v }));
+    }
+    return snapshot;
+  }
+
+  /**
+   * Restore store contents from a snapshot without emitting change events.
+   * Invalid keys/points are skipped. Existing data is replaced.
+   */
+  restore(data: unknown, opts?: RestoreStoreOpts): void {
+    this.store.clear();
+    if (!data || typeof data !== 'object' || Array.isArray(data)) return;
+
+    const requestedLimit = opts?.limitPerKey;
+    const effectiveLimit = requestedLimit && requestedLimit > 0
+      ? Math.min(Math.floor(requestedLimit), this.maxPoints)
+      : this.maxPoints;
+
+    for (const [key, rawSeries] of Object.entries(data as StoreSnapshotData)) {
+      if (typeof key !== 'string' || key.length === 0 || !Array.isArray(rawSeries)) continue;
+
+      const series = rawSeries
+        .filter((p): p is DataPoint => (
+          !!p &&
+          typeof p === 'object' &&
+          Number.isFinite((p as DataPoint).t) &&
+          Number.isFinite((p as DataPoint).v)
+        ))
+        .map((p) => ({ t: p.t, v: p.v }))
+        .slice(-effectiveLimit);
+
+      if (series.length > 0) {
+        this.store.set(key, series);
+      }
+    }
   }
 
   /**

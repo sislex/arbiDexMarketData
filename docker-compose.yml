@@ -11,8 +11,14 @@ services:
     environment:
       PORT: 3002
       MAX_POINTS_PER_KEY: ${MAX_POINTS_PER_KEY:-100000}
+      SNAPSHOT_PATH: ${SNAPSHOT_PATH:-./data/store.snapshot.json}
+      AUTOSAVE_INTERVAL_MS: ${AUTOSAVE_INTERVAL_MS:-10000}
+      RESTORE_POINTS_PER_KEY: ${RESTORE_POINTS_PER_KEY:-10000}
+      SNAPSHOT_CHUNK_BYTES: ${SNAPSHOT_CHUNK_BYTES:-10485760}
     env_file:
       - .env
+    volumes:
+      - ./data:/app/data
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3002/store/keys"]
       interval: 15s

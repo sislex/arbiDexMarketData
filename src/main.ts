@@ -10,6 +10,9 @@ async function bootstrap() {
   // WebSocket adapter
   app.useWebSocketAdapter(new IoAdapter(app));
 
+  // Graceful shutdown: allows services to flush autosave snapshots on SIGINT/SIGTERM.
+  app.enableShutdownHooks();
+
   // Validation
   app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
 

@@ -16,7 +16,8 @@ export class AppController {
       description:
         'Autonomous in-memory time-series store for numeric market data. ' +
         'Supports REST API for reading/writing data points, WebSocket (Socket.IO) ' +
-        'for real-time subscriptions, and OpenAPI documentation for AI agent integration.',
+        'for real-time subscriptions, JSON snapshot autosave/restore, ' +
+        'and OpenAPI documentation for AI agent integration.',
       links: {
         swaggerUI: `${baseUrl}/api`,
         openApiJson: `${baseUrl}/api-json`,
@@ -48,6 +49,12 @@ export class AppController {
           write: 'Write a data point via WS. Payload: {key, value, timestamp?}',
           data: '(server → client) Emitted when a subscribed key changes. Payload: {key, point: {t, v}}',
         },
+      },
+      persistence: {
+        snapshotPath: process.env.SNAPSHOT_PATH ?? './data/store.snapshot.json',
+        autosaveIntervalMs: Number(process.env.AUTOSAVE_INTERVAL_MS ?? 10_000),
+        restorePointsPerKey: Number(process.env.RESTORE_POINTS_PER_KEY ?? 10_000),
+        snapshotChunkBytes: Number(process.env.SNAPSHOT_CHUNK_BYTES ?? 10 * 1_024 * 1_024),
       },
       authentication:
         'If API_KEY env var is set, supply it via x-api-key header or ?api_key= query param. ' +

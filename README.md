@@ -6,7 +6,8 @@ Autonomous **NestJS 11** service — universal in-memory time-series store for n
 
 Serves as the **central market data hub** of the ArbiDex ecosystem:
 accepts quotes from `arbiDexServerBots` (and any other producers) via REST or WebSocket,
-stores history (up to 100 000 points per key, FIFO), and delivers data to consumers in real time.
+stores hot history in RAM (up to 100 000 points per key, FIFO), periodically persists it to a JSON snapshot file,
+restores the latest points on startup, and delivers data to consumers in real time.
 
 ---
 
@@ -19,7 +20,7 @@ stores history (up to 100 000 points per key, FIFO), and delivers data to consum
 | REST Docs | `@nestjs/swagger` + Swagger UI |
 | WS Docs | AsyncAPI 2.6 (`asyncapi.json`) |
 | Configuration | `@nestjs/config` + `.env` |
-| Tests | Jest — 102 unit tests |
+| Tests | Jest unit tests |
 | Container | Docker + docker-compose |
 
 ---
@@ -52,6 +53,11 @@ Service will be available at `http://localhost:3002`.
 |---|---|---|
 | `PORT` | `3002` | HTTP / WS server port |
 | `MAX_POINTS_PER_KEY` | `100000` | Maximum points per key (FIFO ring) |
+| `SNAPSHOT_PATH` | `./data/store.snapshot.json` | JSON snapshot file used for autosave/restore |
+| `AUTOSAVE_INTERVAL_MS` | `10000` | Autosave interval in milliseconds |
+| `RESTORE_POINTS_PER_KEY` | `10000` | On startup, restore only the latest N points per key |
+| `SNAPSHOT_CHUNK_BYTES` | `10485760` | Approximate max size of each snapshot part (10 MB) |
+| `SOURCE_URL` | `http://45.135.182.251:3002` | Source service URL for `npm run snapshot:pull` |
 | `API_KEY` | _(empty)_ | API key. If not set — auth is disabled (dev mode) |
 
 Generate a secure key:
@@ -161,10 +167,49 @@ Subscribe to **all** keys at once: `socket.emit('subscribe', {})`.
 
 ---
 
+## Persistence
+
+The primary storage is still RAM for fast reads, writes and WebSocket broadcasts. For development restarts and container restarts, the service also keeps a snapshot file:
+
+- autosave runs every `AUTOSAVE_INTERVAL_MS` milliseconds (`10000` by default);
+- snapshot path is controlled by `SNAPSHOT_PATH` (`./data/store.snapshot.json` by default);
+- snapshot is saved as a manifest file plus part files, each approximately `SNAPSHOT_CHUNK_BYTES` (`10 MB`) when possible;
+- on startup the service tries to load the snapshot file;
+- restore is capped by `RESTORE_POINTS_PER_KEY` (`10000` by default) for every key;
+- Docker mounts `./data:/app/data`, so the snapshot survives container recreation.
+
+Snapshot files are runtime data and are ignored by git.
+
+### Pulling cache from an old running service
+
+If an older deployment does not have autosave yet, keep it running and pull its RAM cache through REST API before starting the new container:
+
+```bash
+npm run snapshot:pull
+```
+
+The command reads `SOURCE_URL` from `.env`. Use the API base URL: `http://45.135.182.251:3002`. If a Swagger URL with `/api` is accidentally provided, `/api` is stripped automatically.
+
+Override values inline if needed:
+
+```bash
+SOURCE_URL=http://old-host:3002 SNAPSHOT_PATH=./data/store.snapshot.json RESTORE_POINTS_PER_KEY=10000 SNAPSHOT_CHUNK_BYTES=10485760 npm run snapshot:pull
+```
+
+If API key authentication is enabled on the old service:
+
+```bash
+SOURCE_URL=http://old-host:3002 API_KEY=your-secret-key npm run snapshot:pull
+```
+
+The command creates or updates `./data/store.snapshot.json` and matching `*.part-*.json` files. It also prints a memory report in the same shape as `GET /store/memory`. After that, start the new container; it will mount `./data:/app/data` and restore the old cache on startup.
+
+---
+
 ## Tests
 
 ```bash
-npm test             # all unit tests (61 tests)
+npm test             # all unit tests
 npm run test:cov     # with coverage report
 npm run test:e2e     # e2e tests
 ```
@@ -182,6 +227,7 @@ src/
   store/
     data-store.ts              # Core: Map + EventEmitter, deduplication, FIFO
     store.service.ts           # @Injectable — wrapper over DataStore
+    store-persistence.service.ts # Autosave/restore JSON snapshot
     store.controller.ts        # REST endpoints + Swagger decorators
     store.gateway.ts           # Socket.IO Gateway /store
     dto/                       # WritePointDto, WriteBatchDto, QuerySeriesDto, ...
