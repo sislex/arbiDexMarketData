@@ -1,5 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { DataPoint } from './interfaces/data-point.interface';
+import { isPoolKey } from './store-key.utils';
 
 export type DataChangeCallback = (key: string, point: DataPoint) => void;
 
@@ -33,7 +34,8 @@ export interface MemoryUsageReport {
   };
 }
 
-export type StoreSnapshotData = Record<string, DataPoint[]>;
+export type PoolSnapshotValue = { value: string };
+export type StoreSnapshotData = Record<string, DataPoint[] | PoolSnapshotValue>;
 
 export interface RestoreStoreOpts {
   /** Keep only the latest N points per key while restoring. */
@@ -91,12 +93,25 @@ export class DataStore {
    * @param value numeric value
    * @param timestamp Unix ms (defaults to Date.now())
    */
-  record(key: string, value: number, timestamp?: number): void {
+  record(key: string, value: number | string, timestamp?: number): void {
     let series = this.store.get(key);
     if (!series) {
       series = [];
       this.store.set(key, series);
     }
+
+    if (isPoolKey(key)) {
+      if (typeof value !== 'string') return;
+      const point: DataPoint = { v: value };
+      // Pool keys keep only the latest address.
+      series.length = 0;
+      series.push(point);
+      this.emitter.emit(key, point);
+      this.emitter.emit('__any__', key, point);
+      return;
+    }
+
+    if (typeof value !== 'number') return;
 
     // Deduplication
     const last = series.length > 0 ? series[series.length - 1] : null;
@@ -122,11 +137,18 @@ export class DataStore {
   getSeries(key: string, opts?: SeriesQueryOpts): DataPoint[] {
     let series = this.store.get(key) ?? [];
 
+    if (isPoolKey(key)) {
+      if (opts?.limit !== undefined && opts.limit > 0) {
+        series = series.slice(-opts.limit);
+      }
+      return series;
+    }
+
     if (opts?.from !== undefined) {
-      series = series.filter((p) => p.t >= opts.from!);
+      series = series.filter((p) => typeof p.t === 'number' && p.t >= opts.from!);
     }
     if (opts?.to !== undefined) {
-      series = series.filter((p) => p.t <= opts.to!);
+      series = series.filter((p) => typeof p.t === 'number' && p.t <= opts.to!);
     }
     if (opts?.limit !== undefined && opts.limit > 0) {
       series = series.slice(-opts.limit);
@@ -152,7 +174,16 @@ export class DataStore {
   serialize(): StoreSnapshotData {
     const snapshot: StoreSnapshotData = {};
     for (const [key, series] of this.store) {
-      snapshot[key] = series.map((p) => ({ t: p.t, v: p.v }));
+      if (isPoolKey(key)) {
+        const last = series.length > 0 ? series[series.length - 1] : null;
+        if (last && typeof last.v === 'string') {
+          snapshot[key] = { value: last.v };
+        }
+        continue;
+      }
+      snapshot[key] = series
+        .filter((p) => typeof p.t === 'number' && typeof p.v === 'number')
+        .map((p) => ({ t: p.t, v: p.v }));
     }
     return snapshot;
   }
@@ -170,17 +201,31 @@ export class DataStore {
       ? Math.min(Math.floor(requestedLimit), this.maxPoints)
       : this.maxPoints;
 
-    for (const [key, rawSeries] of Object.entries(data as StoreSnapshotData)) {
-      if (typeof key !== 'string' || key.length === 0 || !Array.isArray(rawSeries)) continue;
+    for (const [key, rawValue] of Object.entries(data as StoreSnapshotData)) {
+      if (typeof key !== 'string' || key.length === 0) continue;
 
-      const series = rawSeries
+      if (isPoolKey(key)) {
+        if (
+          rawValue &&
+          typeof rawValue === 'object' &&
+          !Array.isArray(rawValue) &&
+          typeof (rawValue as PoolSnapshotValue).value === 'string'
+        ) {
+          this.store.set(key, [{ v: (rawValue as PoolSnapshotValue).value }]);
+        }
+        continue;
+      }
+
+      if (!Array.isArray(rawValue)) continue;
+      const series = rawValue
         .filter((p): p is DataPoint => (
           !!p &&
           typeof p === 'object' &&
           Number.isFinite((p as DataPoint).t) &&
+          typeof (p as DataPoint).v === 'number' &&
           Number.isFinite((p as DataPoint).v)
         ))
-        .map((p) => ({ t: p.t, v: p.v }))
+        .map((p) => ({ t: p.t as number, v: p.v as number }))
         .slice(-effectiveLimit);
 
       if (series.length > 0) {

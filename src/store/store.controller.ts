@@ -23,6 +23,7 @@ import { QuerySeriesDto } from './dto/query-series.dto';
 import { KeysQueryDto } from './dto/keys-query.dto';
 import { MemoryQueryDto } from './dto/memory-query.dto';
 import { KeysListQueryDto } from './dto/keys-list-query.dto';
+import { isPoolKey } from './store-key.utils';
 
 @ApiTags('store')
 @Controller('store')
@@ -90,8 +91,14 @@ export class StoreController {
   @Get('key/:key')
   @ApiOperation({ summary: 'Get time series for a key with optional filtering' })
   @ApiParam({ name: 'key', example: 'binance|ETHUSDT|bidPrice' })
-  @ApiResponse({ status: 200, description: 'Array of DataPoint' })
+  @ApiResponse({ status: 200, description: 'Series response for price keys, or { key, value } for pool keys' })
   getSeries(@Param('key') key: string, @Query() query: QuerySeriesDto): any {
+    if (isPoolKey(key)) {
+      const point = this.storeService.getLastPoint(key);
+      if (!point || typeof point.v !== 'string') return { key, value: null };
+      return { key, value: point.v };
+    }
+
     const points = this.storeService.getSeries(key, {
       from: query.from,
       to: query.to,

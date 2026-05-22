@@ -9,6 +9,7 @@ import {
   StoreSnapshotData,
 } from './data-store';
 import { DataPoint } from './interfaces/data-point.interface';
+import { isPoolKey } from './store-key.utils';
 
 @Injectable()
 export class StoreService {
@@ -19,13 +20,19 @@ export class StoreService {
     this.dataStore = new DataStore(maxPoints);
   }
 
-  write(key: string, value: number, timestamp?: number): void {
+  write(key: string, value: number | string, timestamp?: number): void {
+    if (isPoolKey(key)) {
+      if (typeof value !== 'string') return;
+      this.dataStore.record(key, value);
+      return;
+    }
+    if (typeof value !== 'number') return;
     this.dataStore.record(key, value, timestamp);
   }
 
-  writeBatch(points: Array<{ key: string; value: number; timestamp?: number }>): void {
+  writeBatch(points: Array<{ key: string; value: number | string; timestamp?: number }>): void {
     for (const p of points) {
-      this.dataStore.record(p.key, p.value, p.timestamp);
+      this.write(p.key, p.value, p.timestamp);
     }
   }
 
@@ -73,9 +80,14 @@ export class StoreService {
     return this.dataStore.onAnyChange(cb);
   }
 
-  getSnapshot(): Record<string, DataPoint | null> {
-    return this.dataStore.getKeys().reduce<Record<string, DataPoint | null>>((acc, key) => {
-      acc[key] = this.dataStore.getLastPoint(key);
+  getSnapshot(): Record<string, DataPoint | { value: string } | null> {
+    return this.dataStore.getKeys().reduce<Record<string, DataPoint | { value: string } | null>>((acc, key) => {
+      const point = this.dataStore.getLastPoint(key);
+      if (isPoolKey(key)) {
+        acc[key] = point && typeof point.v === 'string' ? { value: point.v } : null;
+        return acc;
+      }
+      acc[key] = point;
       return acc;
     }, {});
   }

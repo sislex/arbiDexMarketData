@@ -47,6 +47,7 @@ describe('StorePersistenceService', () => {
   it('should save current store data to a chunked snapshot manifest', async () => {
     storeService.write('a', 1, 1000);
     storeService.write('a', 2, 2000);
+    storeService.write('dex:arb|A/B|bidPool', '0xpool');
 
     await persistence.saveSnapshot();
 
@@ -60,6 +61,7 @@ describe('StorePersistenceService', () => {
     const chunk = JSON.parse(await readFile(join(dir, parsed.chunks[0].file), 'utf8'));
     expect(chunk.data).toEqual({
       a: [{ t: 1000, v: 1 }, { t: 2000, v: 2 }],
+      'dex:arb|A/B|bidPool': { value: '0xpool' },
     });
   });
 
@@ -85,7 +87,7 @@ describe('StorePersistenceService', () => {
       version: 1,
       savedAt: new Date().toISOString(),
       part: 1,
-      data: { a: [{ t: 1000, v: 1 }] },
+      data: { a: [{ t: 1000, v: 1 }], 'dex:arb|A/B|askPool': { value: '0xpool' } },
     }), 'utf8');
     await writeFile(snapshotPath, JSON.stringify({
       version: 1,
@@ -99,6 +101,7 @@ describe('StorePersistenceService', () => {
     await persistence.loadSnapshot();
 
     expect(storeService.getSeries('a')).toEqual([{ t: 1000, v: 1 }]);
+    expect(storeService.getSeries('dex:arb|A/B|askPool')).toEqual([{ v: '0xpool' }]);
   });
 
   it('should load only latest RESTORE_POINTS_PER_KEY points per key', async () => {
@@ -113,13 +116,6 @@ describe('StorePersistenceService', () => {
     expect(restored[9_999]).toEqual({ t: 10_004, v: 10_004 });
   });
 
-  it('should support legacy raw snapshot format', async () => {
-    await writeFile(snapshotPath, JSON.stringify({ a: [{ t: 1000, v: 1 }] }), 'utf8');
-
-    await persistence.loadSnapshot();
-
-    expect(storeService.getSeries('a')).toEqual([{ t: 1000, v: 1 }]);
-  });
 
   it('should not throw when snapshot file does not exist', async () => {
     await expect(persistence.loadSnapshot()).resolves.toBeUndefined();

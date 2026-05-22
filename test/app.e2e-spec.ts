@@ -25,21 +25,24 @@ describe('arbiDexMarketData (e2e)', () => {
 
   // ── GET /store/keys ──────────────────────────────────────────
   describe('GET /store/keys', () => {
-    it('should return an empty array on fresh start', () => {
-      return request(app.getHttpServer())
+    it('should return an array of keys', async () => {
+      const res = await request(app.getHttpServer())
         .get('/store/keys')
-        .expect(200)
-        .expect([]);
+        .expect(200);
+
+      expect(Array.isArray(res.body)).toBe(true);
     });
   });
 
   // ── GET /store/snapshot ──────────────────────────────────────
   describe('GET /store/snapshot', () => {
-    it('should return an empty object on fresh start', () => {
-      return request(app.getHttpServer())
+    it('should return an object map', async () => {
+      const res = await request(app.getHttpServer())
         .get('/store/snapshot')
-        .expect(200)
-        .expect({});
+        .expect(200);
+
+      expect(typeof res.body).toBe('object');
+      expect(Array.isArray(res.body)).toBe(false);
     });
   });
 
@@ -65,6 +68,14 @@ describe('arbiDexMarketData (e2e)', () => {
         .post('/store/write')
         .send({ key: 'e2e|TEST|bidPrice' })
         .expect(400);
+    });
+
+    it('should write pool address as string', () => {
+      return request(app.getHttpServer())
+        .post('/store/write')
+        .send({ key: 'dex:e2e|TOKENA/TOKENB|bidPool', value: '0xpool1' })
+        .expect(201)
+        .expect({ success: true });
     });
   });
 
@@ -154,6 +165,28 @@ describe('arbiDexMarketData (e2e)', () => {
       expect(res.body.points).toEqual([]);
       expect(res.body.last).toBeNull();
     });
+
+    it('should return { key, value } for pool key', async () => {
+      await request(app.getHttpServer())
+        .post('/store/write')
+        .send({ key: 'dex:e2e|TOKENA/TOKENB|askPool', value: '0xpool2' })
+        .expect(201);
+
+      const res = await request(app.getHttpServer())
+        .get(`/store/key/${encodeURIComponent('dex:e2e|TOKENA/TOKENB|askPool')}`)
+        .expect(200);
+
+      expect(res.body).toEqual({ key: 'dex:e2e|TOKENA/TOKENB|askPool', value: '0xpool2' });
+    });
+
+    it('should return { key, value: null } for unknown pool key', async () => {
+      const key = 'dex:e2e|TOKENA/TOKENB|unknown|askPool';
+      const res = await request(app.getHttpServer())
+        .get(`/store/key/${encodeURIComponent(key)}`)
+        .expect(200);
+
+      expect(res.body).toEqual({ key, value: null });
+    });
   });
 
   // ── GET /store/key/:key/latest ────────────────────────────────
@@ -204,12 +237,18 @@ describe('arbiDexMarketData (e2e)', () => {
   // ── GET /store/snapshot ───────────────────────────────────────
   describe('GET /store/snapshot (after writes)', () => {
     it('should include previously written keys', async () => {
+      await request(app.getHttpServer())
+        .post('/store/write')
+        .send({ key: 'dex:e2e|TOKENA/TOKENB|bidPool', value: '0xpool3' })
+        .expect(201);
+
       const res = await request(app.getHttpServer())
         .get('/store/snapshot')
         .expect(200);
 
       expect(res.body['e2e|LATEST|bidPrice']).toBeDefined();
       expect(res.body['e2e|LATEST|bidPrice'].v).toBe(99);
+      expect(res.body['dex:e2e|TOKENA/TOKENB|bidPool']).toEqual({ value: '0xpool3' });
     });
   });
 

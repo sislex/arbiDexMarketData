@@ -178,6 +178,24 @@ describe('StoreGateway', () => {
       expect(service.write).toHaveBeenCalledWith('k1', 1, undefined);
     });
 
+    it('should write pool key as string without timestamp', () => {
+      const client = makeClient();
+      gateway.handleWrite(client as any, { key: 'dex:arb|A/B|bidPool', value: '0xpool' });
+      expect(service.write).toHaveBeenCalledWith('dex:arb|A/B|bidPool', '0xpool');
+    });
+
+    it('should ignore non-string pool value', () => {
+      const client = makeClient();
+      gateway.handleWrite(client as any, { key: 'dex:arb|A/B|askPool', value: 123 as any });
+      expect(service.write).not.toHaveBeenCalled();
+    });
+
+    it('should ignore non-number price value', () => {
+      const client = makeClient();
+      gateway.handleWrite(client as any, { key: 'k1', value: 'bad' as any });
+      expect(service.write).not.toHaveBeenCalled();
+    });
+
     it('should not throw if payload is malformed', () => {
       const client = makeClient();
       expect(() => gateway.handleWrite(client as any, {} as any)).not.toThrow();

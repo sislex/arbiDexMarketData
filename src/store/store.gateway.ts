@@ -8,6 +8,7 @@ import {
 import { Server, Socket } from 'socket.io';
 import { ConfigService } from '@nestjs/config';
 import { StoreService } from './store.service';
+import { isPoolKey } from './store-key.utils';
 
 export interface ClientInfo {
   /** Socket ID */
@@ -127,11 +128,18 @@ export class StoreGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('write')
   handleWrite(
     _client: Socket,
-    payload: { key: string; value: number; timestamp?: number },
+    payload: { key: string; value: number | string; timestamp?: number },
   ): void {
-    if (payload?.key !== undefined && payload?.value !== undefined) {
-      this.storeService.write(payload.key, payload.value, payload.timestamp);
+    if (typeof payload?.key !== 'string' || payload?.value === undefined) return;
+
+    if (isPoolKey(payload.key)) {
+      if (typeof payload.value !== 'string') return;
+      this.storeService.write(payload.key, payload.value);
+      return;
     }
+
+    if (typeof payload.value !== 'number') return;
+    this.storeService.write(payload.key, payload.value, payload.timestamp);
   }
 
   handleDisconnect(client: Socket): void {

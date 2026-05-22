@@ -191,7 +191,10 @@ export class StorePersistenceService implements OnModuleInit, OnModuleDestroy {
       const chunkPath = join(dirname(this.snapshotPath), file);
       const bytes = Buffer.byteLength(JSON.stringify(chunk), 'utf8');
       const keys = Object.keys(chunk.data).length;
-      const points = Object.values(chunk.data).reduce((sum, series) => sum + series.length, 0);
+      const points = Object.values(chunk.data).reduce((sum, value) => {
+        if (Array.isArray(value)) return sum + value.length;
+        return typeof value?.value === 'string' ? sum + 1 : sum;
+      }, 0);
 
       await this.writeJsonAtomic(chunkPath, chunk);
       refs.push({ file, keys, points, bytes });

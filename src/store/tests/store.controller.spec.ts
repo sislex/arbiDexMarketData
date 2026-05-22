@@ -139,6 +139,20 @@ describe('StoreController', () => {
       const result = controller.getSeries('empty', {} as QuerySeriesDto);
       expect(result).toEqual({ key: 'empty', points: [], count: 0, last: null });
     });
+
+    it('should return { key, value } for pool key', () => {
+      service.getLastPoint.mockReturnValue({ v: '0xpool' });
+      const result = controller.getSeries('dex:arb|A/B|bidPool', {} as QuerySeriesDto);
+      expect(service.getLastPoint).toHaveBeenCalledWith('dex:arb|A/B|bidPool');
+      expect(service.getSeries).not.toHaveBeenCalled();
+      expect(result).toEqual({ key: 'dex:arb|A/B|bidPool', value: '0xpool' });
+    });
+
+    it('should return { key, value: null } for unknown pool key', () => {
+      service.getLastPoint.mockReturnValue(null);
+      const result = controller.getSeries('dex:arb|A/B|askPool', {} as QuerySeriesDto);
+      expect(result).toEqual({ key: 'dex:arb|A/B|askPool', value: null });
+    });
   });
 
   // ── POST /store/keys ─────────────────────────────────────────

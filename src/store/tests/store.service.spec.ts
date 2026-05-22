@@ -52,6 +52,15 @@ describe('StoreService', () => {
       expect(byLimit).toHaveLength(1);
       expect(byLimit[0].v).toBe(3);
     });
+
+    it('should keep only last pool address and ignore timestamp', () => {
+      const key = 'dex:arb|A/B|bidPool';
+      service.write(key, '0xpool1', 1000);
+      service.write(key, '0xpool2', 2000);
+      const points = service.getSeries(key);
+      expect(points).toEqual([{ v: '0xpool2' }]);
+      expect(service.getLastPoint(key)).toEqual({ v: '0xpool2' });
+    });
   });
 
   // ── writeBatch ───────────────────────────────────────────────
@@ -160,9 +169,11 @@ describe('StoreService', () => {
       service.write('a', 10, 1000);
       service.write('a', 20, 2000);
       service.write('b', 99, 3000);
+      service.write('dex:arb|A/B|askPool', '0xpool');
       const snap = service.getSnapshot();
       expect(snap['a']).toEqual({ t: 2000, v: 20 });
       expect(snap['b']).toEqual({ t: 3000, v: 99 });
+      expect(snap['dex:arb|A/B|askPool']).toEqual({ value: '0xpool' });
     });
   });
 
