@@ -74,26 +74,27 @@
     "/store/snapshot": {
       "get": {
         "tags": ["store"],
-        "summary": "Get snapshot: all keys with their latest point",
+        "summary": "Get snapshot: all keys with their latest value",
         "operationId": "StoreController_getSnapshot",
         "parameters": [],
         "responses": {
           "200": {
-            "description": "Map of key → last DataPoint | null",
+            "description": "Map of key → last NumericDataPoint or pool value object",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "additionalProperties": {
-                    "oneOf": [
-                      { "$ref": "#/components/schemas/DataPoint" },
-                      { "type": "null" }
-                    ]
-                  },
-                  "example": {
-                    "binance|ETHUSDT|bidPrice": { "t": 1700000001000, "v": 3500.5 },
-                    "mexc|ETHUSDT|askPrice": { "t": 1700000002000, "v": 3501.0 }
-                  }
+                    "additionalProperties": {
+                      "oneOf": [
+                        { "$ref": "#/components/schemas/DataPoint" },
+                        { "$ref": "#/components/schemas/PoolSnapshotValue" },
+                        { "type": "null" }
+                      ]
+                    },
+                    "example": {
+                      "binance|ETHUSDT|bidPrice": { "t": 1700000001000, "v": 3500.5 },
+                      "dex:arbitrum|WETH/USDC|bidPool": { "value": "0x6f38e884725a116c9c7fbf208e79fe8828a2595f" }
+                    }
                 }
               }
             }
@@ -163,10 +164,15 @@
         ],
         "responses": {
           "200": {
-            "description": "Series result",
+            "description": "Series result for price keys, or pool value object for |bidPool/|askPool keys",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/SeriesResponse" }
+                "schema": {
+                  "oneOf": [
+                    { "$ref": "#/components/schemas/SeriesResponse" },
+                    { "$ref": "#/components/schemas/PoolKeyResponse" }
+                  ]
+                }
               }
             }
           }
@@ -357,7 +363,8 @@
         }
       }
     },
-    "/store/memory": {
+    "/store/clients": {
+      "get": {
         "tags": ["store"],
         "summary": "Get connected WebSocket clients",
         "description": "Returns the number of currently connected WebSocket clients and the keys each client is subscribed to. `subscribedKeys` is `null` when connected but not yet subscribed, `\"all\"` when subscribed to all keys, or an array of specific key strings.",
@@ -497,9 +504,9 @@
       }
     },
     "schemas": {
-      "DataPoint": {
+      "NumericDataPoint": {
         "type": "object",
-        "description": "A single time-series data point",
+        "description": "Numeric time-series point",
         "properties": {
           "t": {
             "type": "integer",
@@ -513,6 +520,47 @@
           }
         },
         "required": ["t", "v"]
+      },
+      "PoolDataPoint": {
+        "type": "object",
+        "description": "Pool address value point (no timestamp)",
+        "properties": {
+          "v": {
+            "type": "string",
+            "description": "Pool address",
+            "example": "0x6f38e884725a116c9c7fbf208e79fe8828a2595f"
+          }
+        },
+        "required": ["v"]
+      },
+      "DataPoint": {
+        "oneOf": [
+          { "$ref": "#/components/schemas/NumericDataPoint" },
+          { "$ref": "#/components/schemas/PoolDataPoint" }
+        ]
+      },
+      "PoolSnapshotValue": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string",
+            "example": "0x6f38e884725a116c9c7fbf208e79fe8828a2595f"
+          }
+        },
+        "required": ["value"]
+      },
+      "PoolKeyResponse": {
+        "type": "object",
+        "properties": {
+          "key": { "type": "string", "example": "dex:arbitrum|WETH/USDC|bidPool" },
+          "value": {
+            "oneOf": [
+              { "type": "string", "example": "0x6f38e884725a116c9c7fbf208e79fe8828a2595f" },
+              { "type": "null" }
+            ]
+          }
+        },
+        "required": ["key", "value"]
       },
       "SeriesResponse": {
         "type": "object",
@@ -555,9 +603,11 @@
             "example": "binance|ETHUSDT|bidPrice"
           },
           "value": {
-            "type": "number",
-            "description": "Numeric value",
-            "example": 3500.5
+            "description": "Value: number for price keys, string for pool keys (|bidPool / |askPool)",
+            "oneOf": [
+              { "type": "number", "example": 3500.5 },
+              { "type": "string", "example": "0x6f38e884725a116c9c7fbf208e79fe8828a2595f" }
+            ]
           },
           "timestamp": {
             "type": "integer",

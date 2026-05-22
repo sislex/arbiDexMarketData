@@ -173,6 +173,10 @@ interface DataPoint {
   t: number;  // timestamp (мс), Unix epoch — Date.now()
   v: number;  // числовое значение
 }
+
+interface PoolDataPoint {
+  v: string;  // адрес пула, без timestamp
+}
 ```
 
 ### Ключ
@@ -193,12 +197,13 @@ okx|ETH-USDT|bidPrice
 kucoin|ETH-USDT|askPrice
 gateio|ETH_USDT|askPrice
 dex:arbitrum|WETH/USDC|bidPrice
+dex:arbitrum|WETH/USDC|bidPool
 ```
 
 ### Дедупликация
 
-Если записываемое значение **не изменилось** относительно последней точки — новая точка **не записывается**.
-Это позволяет точно определять периоды, когда цена была неизменна.
+Для числовых ценовых ключей: если значение **не изменилось** относительно последней точки — новая точка **не записывается**.
+Для pool-ключей (`|bidPool` / `|askPool`) хранится только последний адрес пула.
 
 ---
 
@@ -221,17 +226,21 @@ curl http://localhost:3002/store/keys
 ---
 
 #### `GET /store/snapshot`
-Снапшот: все ключи с их **последней** точкой.
+Снапшот: все ключи с их **последним** значением.
 
 ```bash
 curl http://localhost:3002/store/snapshot
-# → { "binance|ETHUSDT|bidPrice": { "t": 1700000001000, "v": 3500.5 }, ... }
+# → {
+#      "binance|ETHUSDT|bidPrice": { "t": 1700000001000, "v": 3500.5 },
+#      "dex:arbitrum|WETH/USDC|bidPool": { "value": "0x6f38e884725a116c9c7fbf208e79fe8828a2595f" }
+#    }
 ```
 
 ---
 
 #### `GET /store/key/:key`
-Временной ряд по ключу. Поддерживает фильтрацию:
+Для ценовых ключей: временной ряд с фильтрацией.
+Для pool-ключей (`|bidPool` / `|askPool`): возвращается `{ key, value }` (или `{ key, value: null }`, если значения нет).
 
 | Query-параметр | Тип | Описание |
 |---|---|---|
@@ -261,6 +270,11 @@ curl "http://localhost:3002/store/key/binance%7CETHUSDT%7CbidPrice?from=17000000
   "count": 2,
   "last": { "t": 1700000002000, "v": 3501.0 }
 }
+```
+
+Ответ для pool-ключа:
+```json
+{ "key": "dex:arbitrum|WETH/USDC|bidPool", "value": "0x6f38e884725a116c9c7fbf208e79fe8828a2595f" }
 ```
 
 ---
@@ -311,6 +325,11 @@ curl -X POST http://localhost:3002/store/write \
 curl -X POST http://localhost:3002/store/write \
   -H 'Content-Type: application/json' \
   -d '{ "key": "binance|ETHUSDT|bidPrice", "value": 3500.5, "timestamp": 1700000001000 }'
+
+# Запись адреса пула (string value, timestamp игнорируется)
+curl -X POST http://localhost:3002/store/write \
+  -H 'Content-Type: application/json' \
+  -d '{ "key": "dex:arbitrum|WETH/USDC|bidPool", "value": "0x6f38e884725a116c9c7fbf208e79fe8828a2595f" }'
 ```
 
 **Ответ:** `201 { "success": true }`
@@ -486,8 +505,12 @@ socket.on('subscribed', (info) => {
   console.log('Subscribed to:', info.keys); // string[]
 });
 
-socket.on('dataChange', (data: { key: string; point: { t: number; v: number } }) => {
-  console.log(`${data.key} → ${data.point.v} @ ${new Date(data.point.t).toISOString()}`);
+socket.on('dataChange', (data: { key: string; point: { t?: number; v: number | string } }) => {
+  if (typeof data.point.t === 'number') {
+    console.log(`${data.key} → ${data.point.v} @ ${new Date(data.point.t).toISOString()}`);
+  } else {
+    console.log(`${data.key} → ${data.point.v}`);
+  }
 });
 ```
 
@@ -510,6 +533,11 @@ socket.emit('write', {
   key: 'binance|ETHUSDT|bidPrice',
   value: 3500.5,
   timestamp: Date.now(), // опционально
+});
+
+socket.emit('write', {
+  key: 'dex:arbitrum|WETH/USDC|askPool',
+  value: '0x6f38e884725a116c9c7fbf208e79fe8828a2595f',
 });
 ```
 
@@ -561,6 +589,8 @@ await fetch('http://localhost:3002/store/write/batch', {
     points: [
       { key: `${quote.source}|${quote.symbol}|bidPrice`, value: quote.bidPrice, timestamp: quote.timestamp },
       { key: `${quote.source}|${quote.symbol}|askPrice`, value: quote.askPrice, timestamp: quote.timestamp },
+      { key: `${quote.source}|${quote.symbol}|bidPool`, value: quote.bidPoolAddress },
+      { key: `${quote.source}|${quote.symbol}|askPool`, value: quote.askPoolAddress },
     ]
   })
 });
@@ -571,6 +601,8 @@ await fetch('http://localhost:3002/store/write/batch', {
 ```typescript
 socket.emit('write', { key: `${quote.source}|${quote.symbol}|bidPrice`, value: quote.bidPrice });
 socket.emit('write', { key: `${quote.source}|${quote.symbol}|askPrice`, value: quote.askPrice });
+socket.emit('write', { key: `${quote.source}|${quote.symbol}|bidPool`, value: quote.bidPoolAddress });
+socket.emit('write', { key: `${quote.source}|${quote.symbol}|askPool`, value: quote.askPoolAddress });
 ```
 
 ---

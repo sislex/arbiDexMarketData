@@ -1,5 +1,5 @@
 import { EventEmitter } from 'node:events';
-import { DataPoint } from './interfaces/data-point.interface';
+import { DataPoint, NumericDataPoint } from './interfaces/data-point.interface';
 import { isPoolKey } from './store-key.utils';
 
 export type DataChangeCallback = (key: string, point: DataPoint) => void;
@@ -181,9 +181,15 @@ export class DataStore {
         }
         continue;
       }
-      snapshot[key] = series
-        .filter((p) => typeof p.t === 'number' && typeof p.v === 'number')
+      const numericSeries: NumericDataPoint[] = series
+        .filter((p): p is NumericDataPoint => (
+          typeof p.t === 'number' &&
+          typeof p.v === 'number' &&
+          Number.isFinite(p.t) &&
+          Number.isFinite(p.v)
+        ))
         .map((p) => ({ t: p.t, v: p.v }));
+      snapshot[key] = numericSeries;
     }
     return snapshot;
   }

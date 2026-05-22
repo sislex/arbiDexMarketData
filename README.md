@@ -140,6 +140,8 @@ socket.on('dataChange', ({ key, point }) => {
 
 // Write a point
 socket.emit('write', { key: 'binance|ETHUSDT|bidPrice', value: 3500.5 });
+// Write pool address (latest value only)
+socket.emit('write', { key: 'dex:arbitrum|WETH/USDC|bidPool', value: '0x6f38e884725a116c9c7fbf208e79fe8828a2595f' });
 
 // Unsubscribe
 socket.emit('unsubscribe');
@@ -154,6 +156,8 @@ Subscribe to **all** keys at once: `socket.emit('subscribe', {})`.
 ```typescript
 // DataPoint
 { t: number; v: number }  // t — timestamp mс (Unix epoch), v — numeric value
+// PoolDataPoint (for |bidPool / |askPool)
+{ v: string }             // latest pool address, no timestamp
 
 // Key format (compatible with arbiDexServerBots)
 "<source>|<symbol>|<field>"
@@ -161,9 +165,10 @@ Subscribe to **all** keys at once: `socket.emit('subscribe', {})`.
 "binance|ETHUSDT|bidPrice"
 "mexc|ETHUSDT|askPrice"
 "dex:arbitrum|WETH/USDC|bidPrice"
+"dex:arbitrum|WETH/USDC|bidPool"
 ```
 
-**Deduplication:** if the value has not changed, no new point is stored.
+**Deduplication:** applies to numeric price keys. Pool keys (`|bidPool` / `|askPool`) always keep only the latest address.
 
 ---
 

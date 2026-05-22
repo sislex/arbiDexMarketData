@@ -38,6 +38,12 @@ interface StoreSnapshotChunkFile {
   data: StoreSnapshotData;
 }
 
+function hasSnapshotDataField(value: unknown): value is StoreSnapshotFile | StoreSnapshotChunkFile {
+  if (!value || typeof value !== 'object' || !('data' in value)) return false;
+  const data = (value as { data?: unknown }).data;
+  return !!data && typeof data === 'object' && !Array.isArray(data);
+}
+
 function toPositiveInt(value: unknown, fallback: number): number {
   const parsed = typeof value === 'number' ? value : Number(value);
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
@@ -160,14 +166,7 @@ export class StorePersistenceService implements OnModuleInit, OnModuleDestroy {
   }
 
   private extractDirectSnapshotData(snapshot: StoreSnapshotFile | StoreSnapshotChunkFile | StoreSnapshotData): StoreSnapshotData {
-    if (
-      snapshot &&
-      typeof snapshot === 'object' &&
-      'data' in snapshot &&
-      snapshot.data &&
-      typeof snapshot.data === 'object' &&
-      !Array.isArray(snapshot.data)
-    ) {
+    if (hasSnapshotDataField(snapshot)) {
       return snapshot.data;
     }
 

@@ -156,8 +156,8 @@
       "WritePoint": {
         "name": "write",
         "title": "Write",
-        "summary": "Write a single numeric data point into the store",
-        "description": "Functionally equivalent to `POST /store/write`. `timestamp` defaults to `Date.now()` on the server if omitted.",
+        "summary": "Write a single value into the store",
+        "description": "Functionally equivalent to `POST /store/write`. For price keys value is numeric and `timestamp` defaults to `Date.now()` if omitted. For pool keys (`|bidPool` / `|askPool`) value is a string pool address and timestamp is ignored.",
         "payload": {
           "$ref": "#/components/schemas/WritePointPayload"
         },
@@ -176,6 +176,13 @@
               "key": "binance|ETHUSDT|bidPrice",
               "value": 3501.0
             }
+          },
+          {
+            "name": "Write pool address",
+            "payload": {
+              "key": "dex:arbitrum|WETH/USDC|bidPool",
+              "value": "0x6f38e884725a116c9c7fbf208e79fe8828a2595f"
+            }
           }
         ]
       },
@@ -183,7 +190,7 @@
         "name": "dataChange",
         "title": "DataChange",
         "summary": "A new data point has been recorded for a subscribed key",
-        "description": "Emitted only when the value actually changes (deduplication). If the new value equals the previous one, this event is NOT emitted.",
+        "description": "Emitted after a value is written. For price keys deduplication is applied (unchanged value is skipped). For pool keys the latest address is overwritten and emitted.",
         "payload": {
           "$ref": "#/components/schemas/DataChangePayload"
         },
@@ -193,6 +200,13 @@
             "payload": {
               "key": "binance|ETHUSDT|bidPrice",
               "point": { "t": 1700000001000, "v": 3500.5 }
+            }
+          },
+          {
+            "name": "Pool update",
+            "payload": {
+              "key": "dex:arbitrum|WETH/USDC|askPool",
+              "point": { "v": "0x6f38e884725a116c9c7fbf208e79fe8828a2595f" }
             }
           }
         ]
@@ -215,9 +229,9 @@
       }
     },
     "schemas": {
-      "DataPoint": {
+      "NumericDataPoint": {
         "type": "object",
-        "description": "A single time-series data point",
+        "description": "Numeric time-series data point",
         "required": ["t", "v"],
         "properties": {
           "t": {
@@ -231,6 +245,24 @@
             "example": 3500.5
           }
         }
+      },
+      "PoolDataPoint": {
+        "type": "object",
+        "description": "Pool address value point (no timestamp)",
+        "required": ["v"],
+        "properties": {
+          "v": {
+            "type": "string",
+            "description": "Pool address",
+            "example": "0x6f38e884725a116c9c7fbf208e79fe8828a2595f"
+          }
+        }
+      },
+      "DataPoint": {
+        "oneOf": [
+          { "$ref": "#/components/schemas/NumericDataPoint" },
+          { "$ref": "#/components/schemas/PoolDataPoint" }
+        ]
       },
       "SubscribePayload": {
         "type": "object",
@@ -279,9 +311,11 @@
             "example": "binance|ETHUSDT|bidPrice"
           },
           "value": {
-            "type": "number",
-            "description": "Numeric value to store",
-            "example": 3500.5
+            "description": "Value to store: number for prices, string for pool addresses",
+            "oneOf": [
+              { "type": "number", "example": 3500.5 },
+              { "type": "string", "example": "0x6f38e884725a116c9c7fbf208e79fe8828a2595f" }
+            ]
           },
           "timestamp": {
             "type": "integer",

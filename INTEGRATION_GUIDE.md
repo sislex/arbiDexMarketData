@@ -173,6 +173,10 @@ interface DataPoint {
   t: number;  // timestamp (ms), Unix epoch — Date.now()
   v: number;  // numeric value
 }
+
+interface PoolDataPoint {
+  v: string;  // pool address, no timestamp
+}
 ```
 
 ### Key
@@ -193,12 +197,13 @@ okx|ETH-USDT|bidPrice
 kucoin|ETH-USDT|askPrice
 gateio|ETH_USDT|askPrice
 dex:arbitrum|WETH/USDC|bidPrice
+dex:arbitrum|WETH/USDC|bidPool
 ```
 
 ### Deduplication
 
-If the written value is **unchanged** compared to the last stored point — the new point is **not written**.
-This allows precise detection of periods when the price was constant.
+For numeric price keys, if the value is **unchanged** compared to the last stored point — the new point is **not written**.
+For pool keys (`|bidPool` / `|askPool`) only the latest address is stored.
 
 ---
 
@@ -221,17 +226,21 @@ curl http://localhost:3002/store/keys
 ---
 
 #### `GET /store/snapshot`
-Snapshot: all keys with their **latest** point.
+Snapshot: all keys with their **latest** value.
 
 ```bash
 curl http://localhost:3002/store/snapshot
-# → { "binance|ETHUSDT|bidPrice": { "t": 1700000001000, "v": 3500.5 }, ... }
+# → {
+#      "binance|ETHUSDT|bidPrice": { "t": 1700000001000, "v": 3500.5 },
+#      "dex:arbitrum|WETH/USDC|bidPool": { "value": "0x6f38e884725a116c9c7fbf208e79fe8828a2595f" }
+#    }
 ```
 
 ---
 
 #### `GET /store/key/:key`
-Time series for a key. Supports filtering:
+For price keys: time series with optional filtering.
+For pool keys (`|bidPool` / `|askPool`): returns `{ key, value }` (or `{ key, value: null }` if missing).
 
 | Query param | Type | Description |
 |---|---|---|
@@ -261,6 +270,11 @@ curl "http://localhost:3002/store/key/binance%7CETHUSDT%7CbidPrice?from=17000000
   "count": 2,
   "last": { "t": 1700000002000, "v": 3501.0 }
 }
+```
+
+Pool key response:
+```json
+{ "key": "dex:arbitrum|WETH/USDC|bidPool", "value": "0x6f38e884725a116c9c7fbf208e79fe8828a2595f" }
 ```
 
 ---
@@ -311,6 +325,11 @@ curl -X POST http://localhost:3002/store/write \
 curl -X POST http://localhost:3002/store/write \
   -H 'Content-Type: application/json' \
   -d '{ "key": "binance|ETHUSDT|bidPrice", "value": 3500.5, "timestamp": 1700000001000 }'
+
+# Pool address write (string value, timestamp ignored)
+curl -X POST http://localhost:3002/store/write \
+  -H 'Content-Type: application/json' \
+  -d '{ "key": "dex:arbitrum|WETH/USDC|bidPool", "value": "0x6f38e884725a116c9c7fbf208e79fe8828a2595f" }'
 ```
 
 **Response:** `201 { "success": true }`
@@ -484,8 +503,12 @@ socket.on('subscribed', (info) => {
   console.log('Subscribed to:', info.keys); // string[]
 });
 
-socket.on('dataChange', (data: { key: string; point: { t: number; v: number } }) => {
-  console.log(`${data.key} → ${data.point.v} @ ${new Date(data.point.t).toISOString()}`);
+socket.on('dataChange', (data: { key: string; point: { t?: number; v: number | string } }) => {
+  if (typeof data.point.t === 'number') {
+    console.log(`${data.key} → ${data.point.v} @ ${new Date(data.point.t).toISOString()}`);
+  } else {
+    console.log(`${data.key} → ${data.point.v}`);
+  }
 });
 ```
 
@@ -508,6 +531,11 @@ socket.emit('write', {
   key: 'binance|ETHUSDT|bidPrice',
   value: 3500.5,
   timestamp: Date.now(), // optional
+});
+
+socket.emit('write', {
+  key: 'dex:arbitrum|WETH/USDC|askPool',
+  value: '0x6f38e884725a116c9c7fbf208e79fe8828a2595f',
 });
 ```
 
@@ -559,6 +587,8 @@ await fetch('http://localhost:3002/store/write/batch', {
     points: [
       { key: `${quote.source}|${quote.symbol}|bidPrice`, value: quote.bidPrice, timestamp: quote.timestamp },
       { key: `${quote.source}|${quote.symbol}|askPrice`, value: quote.askPrice, timestamp: quote.timestamp },
+      { key: `${quote.source}|${quote.symbol}|bidPool`, value: quote.bidPoolAddress },
+      { key: `${quote.source}|${quote.symbol}|askPool`, value: quote.askPoolAddress },
     ]
   })
 });
@@ -569,6 +599,8 @@ Or via WebSocket (lower overhead for high-frequency updates):
 ```typescript
 socket.emit('write', { key: `${quote.source}|${quote.symbol}|bidPrice`, value: quote.bidPrice });
 socket.emit('write', { key: `${quote.source}|${quote.symbol}|askPrice`, value: quote.askPrice });
+socket.emit('write', { key: `${quote.source}|${quote.symbol}|bidPool`, value: quote.bidPoolAddress });
+socket.emit('write', { key: `${quote.source}|${quote.symbol}|askPool`, value: quote.askPoolAddress });
 ```
 
 ---
