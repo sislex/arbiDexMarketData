@@ -25,7 +25,6 @@ describe('StorePersistenceService', () => {
       SNAPSHOT_PATH: snapshotPath,
       AUTOSAVE_INTERVAL_MS: 10_000,
       RESTORE_POINTS_PER_KEY: 10_000,
-      SNAPSHOT_CHUNK_BYTES: 10 * 1_024 * 1_024,
       ...overrides,
     });
     storeService = new StoreService(config);
@@ -44,7 +43,7 @@ describe('StorePersistenceService', () => {
     jest.clearAllMocks();
   });
 
-  it('should save current store data to a chunked snapshot manifest', async () => {
+  it('should save current store data to a per-key snapshot manifest', async () => {
     storeService.write('a', 1, 1000);
     storeService.write('a', 2, 2000);
     storeService.write('dex:arb|A/B|bidPool', '0xpool');
@@ -53,20 +52,29 @@ describe('StorePersistenceService', () => {
 
     const raw = await readFile(snapshotPath, 'utf8');
     const parsed = JSON.parse(raw);
-    expect(parsed.version).toBe(1);
+    expect(parsed.version).toBe(2);
     expect(parsed.savedAt).toEqual(expect.any(String));
-    expect(parsed.format).toBe('chunked');
-    expect(parsed.chunks).toHaveLength(1);
+    expect(parsed.format).toBe('per-key');
+    expect(parsed.generation).toEqual(expect.any(String));
+    expect(parsed.entries).toHaveLength(2);
 
-    const chunk = JSON.parse(await readFile(join(dir, parsed.chunks[0].file), 'utf8'));
-    expect(chunk.data).toEqual({
-      a: [{ t: 1000, v: 1 }, { t: 2000, v: 2 }],
-      'dex:arb|A/B|bidPool': { value: '0xpool' },
-    });
+    const aEntry = parsed.entries.find((e: any) => e.key === 'a');
+    const poolEntry = parsed.entries.find((e: any) => e.key === 'dex:arb|A/B|bidPool');
+    expect(aEntry).toBeDefined();
+    expect(poolEntry).toBeDefined();
+
+    const aFile = JSON.parse(await readFile(join(dir, aEntry.file), 'utf8'));
+    expect(aFile.key).toBe('a');
+    expect(aFile.type).toBe('series');
+    expect(aFile.data).toEqual([{ t: 1000, v: 1 }, { t: 2000, v: 2 }]);
+
+    const poolFile = JSON.parse(await readFile(join(dir, poolEntry.file), 'utf8'));
+    expect(poolFile.key).toBe('dex:arb|A/B|bidPool');
+    expect(poolFile.type).toBe('pool');
+    expect(poolFile.data).toEqual({ value: '0xpool' });
   });
 
-  it('should split saved snapshot into multiple chunk files', async () => {
-    createServices({ SNAPSHOT_CHUNK_BYTES: 80 });
+  it('should save one snapshot file per key', async () => {
     storeService.write('a', 1, 1000);
     storeService.write('b', 2, 2000);
     storeService.write('c', 3, 3000);
@@ -74,11 +82,65 @@ describe('StorePersistenceService', () => {
     await persistence.saveSnapshot();
 
     const manifest = JSON.parse(await readFile(snapshotPath, 'utf8'));
-    expect(manifest.format).toBe('chunked');
-    expect(manifest.chunks.length).toBeGreaterThan(1);
-    for (const chunk of manifest.chunks) {
-      expect(await readFile(join(dir, chunk.file), 'utf8')).toBeTruthy();
+    expect(manifest.format).toBe('per-key');
+    expect(manifest.entries).toHaveLength(3);
+    for (const entry of manifest.entries) {
+      expect(await readFile(join(dir, entry.file), 'utf8')).toBeTruthy();
     }
+  });
+
+  it('should keep files from previous generations', async () => {
+    storeService.write('a', 1, 1000);
+    await persistence.saveSnapshot();
+    const firstManifest = JSON.parse(await readFile(snapshotPath, 'utf8'));
+    const firstFiles = firstManifest.entries.map((e: any) => e.file);
+
+    storeService.write('a', 2, 2000);
+    storeService.write('b', 3, 3000);
+    await persistence.saveSnapshot();
+    const secondManifest = JSON.parse(await readFile(snapshotPath, 'utf8'));
+    const files = await readdir(dir);
+
+    expect(firstManifest.generation).not.toBe(secondManifest.generation);
+    for (const file of firstFiles) {
+      expect(files).toContain(file);
+    }
+  });
+
+  it('should load only files from the manifest generation', async () => {
+    const generation = 'gen-current';
+    const currentFile = `store.snapshot.json.${generation}.key-000001.json`;
+    const staleFile = 'store.snapshot.json.gen-old.key-000001.json';
+
+    await writeFile(join(dir, currentFile), JSON.stringify({
+      version: 2,
+      savedAt: new Date().toISOString(),
+      generation,
+      key: 'a',
+      type: 'series',
+      data: [{ t: 1000, v: 1 }],
+    }), 'utf8');
+
+    await writeFile(join(dir, staleFile), JSON.stringify({
+      version: 2,
+      savedAt: new Date().toISOString(),
+      generation: 'gen-old',
+      key: 'a',
+      type: 'series',
+      data: [{ t: 2000, v: 999 }],
+    }), 'utf8');
+
+    await writeFile(snapshotPath, JSON.stringify({
+      version: 2,
+      savedAt: new Date().toISOString(),
+      format: 'per-key',
+      generation,
+      entries: [{ key: 'a', file: currentFile, type: 'series', points: 1, bytes: 1 }],
+      total: { keys: 1, points: 1, bytes: 1 },
+    }), 'utf8');
+
+    await persistence.loadSnapshot();
+    expect(storeService.getSeries('a')).toEqual([{ t: 1000, v: 1 }]);
   });
 
   it('should load chunked snapshot manifest', async () => {
@@ -150,18 +212,19 @@ describe('StorePersistenceService', () => {
     await persistence.onModuleDestroy();
 
     const parsed = JSON.parse(await readFile(snapshotPath, 'utf8'));
-    const chunk = JSON.parse(await readFile(join(dir, parsed.chunks[0].file), 'utf8'));
-    expect(chunk.data.final).toEqual([{ t: 1000, v: 99 }]);
+    const finalEntry = parsed.entries.find((e: any) => e.key === 'final');
+    const keyFile = JSON.parse(await readFile(join(dir, finalEntry.file), 'utf8'));
+    expect(keyFile.data).toEqual([{ t: 1000, v: 99 }]);
   });
 
-  it('should cleanup old chunk files after a successful save', async () => {
-    await writeFile(join(dir, 'store.snapshot.json.old.part-000001.json'), '{}', 'utf8');
+  it('should not delete old snapshot files', async () => {
+    await writeFile(join(dir, 'store.snapshot.json.gen-old.key-000001.json'), '{}', 'utf8');
     storeService.write('fresh', 1, 1000);
 
     await persistence.saveSnapshot();
 
     const files = await readdir(dir);
-    expect(files).not.toContain('store.snapshot.json.old.part-000001.json');
+    expect(files).toContain('store.snapshot.json.gen-old.key-000001.json');
   });
 });
 

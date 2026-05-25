@@ -5,7 +5,7 @@ import { basename, dirname, join, resolve } from 'node:path';
 import { StoreService } from './store.service';
 import { StoreSnapshotData } from './data-store';
 
-interface StoreSnapshotFile {
+interface LegacyStoreSnapshotFile {
   version: 1;
   savedAt: string;
   data: StoreSnapshotData;
@@ -18,7 +18,7 @@ interface StoreSnapshotChunkRef {
   bytes: number;
 }
 
-interface StoreSnapshotManifestFile {
+interface LegacyStoreSnapshotManifestFile {
   version: 1;
   savedAt: string;
   format: 'chunked';
@@ -31,14 +31,44 @@ interface StoreSnapshotManifestFile {
   };
 }
 
-interface StoreSnapshotChunkFile {
+interface LegacyStoreSnapshotChunkFile {
   version: 1;
   savedAt: string;
   part: number;
   data: StoreSnapshotData;
 }
 
-function hasSnapshotDataField(value: unknown): value is StoreSnapshotFile | StoreSnapshotChunkFile {
+interface StoreSnapshotPerKeyEntry {
+  key: string;
+  file: string;
+  type: 'series' | 'pool';
+  points: number;
+  bytes: number;
+}
+
+interface StoreSnapshotManifestFile {
+  version: 2;
+  savedAt: string;
+  format: 'per-key';
+  generation: string;
+  entries: StoreSnapshotPerKeyEntry[];
+  total: {
+    keys: number;
+    points: number;
+    bytes: number;
+  };
+}
+
+interface StoreSnapshotKeyFile {
+  version: 2;
+  savedAt: string;
+  generation: string;
+  key: string;
+  type: 'series' | 'pool';
+  data: StoreSnapshotData[string];
+}
+
+function hasSnapshotDataField(value: unknown): value is LegacyStoreSnapshotFile | LegacyStoreSnapshotChunkFile {
   if (!value || typeof value !== 'object' || !('data' in value)) return false;
   const data = (value as { data?: unknown }).data;
   return !!data && typeof data === 'object' && !Array.isArray(data);
@@ -56,9 +86,9 @@ export class StorePersistenceService implements OnModuleInit, OnModuleDestroy {
   private readonly snapshotPath: string;
   private readonly autosaveIntervalMs: number;
   private readonly restorePointsPerKey: number;
-  private readonly snapshotChunkBytes: number;
   private autosaveTimer?: ReturnType<typeof setInterval>;
   private savePromise: Promise<void> = Promise.resolve();
+  private generationSeq = 0;
 
   constructor(
     private readonly storeService: StoreService,
@@ -75,10 +105,6 @@ export class StorePersistenceService implements OnModuleInit, OnModuleDestroy {
       this.configService.get('RESTORE_POINTS_PER_KEY'),
       10_000,
     );
-    this.snapshotChunkBytes = toPositiveInt(
-      this.configService.get('SNAPSHOT_CHUNK_BYTES'),
-      10 * 1_024 * 1_024,
-    );
   }
 
   async onModuleInit(): Promise<void> {
@@ -94,7 +120,11 @@ export class StorePersistenceService implements OnModuleInit, OnModuleDestroy {
   async loadSnapshot(): Promise<void> {
     try {
       const raw = await fs.readFile(this.snapshotPath, 'utf8');
-      const parsed = JSON.parse(raw) as StoreSnapshotManifestFile | StoreSnapshotFile | StoreSnapshotData;
+      const parsed = JSON.parse(raw) as
+        | StoreSnapshotManifestFile
+        | LegacyStoreSnapshotManifestFile
+        | LegacyStoreSnapshotFile
+        | StoreSnapshotData;
       const data = await this.extractSnapshotData(parsed);
 
       this.storeService.restoreSnapshot(data, { limitPerKey: this.restorePointsPerKey });
@@ -141,14 +171,31 @@ export class StorePersistenceService implements OnModuleInit, OnModuleDestroy {
   }
 
   private async extractSnapshotData(
-    snapshot: StoreSnapshotManifestFile | StoreSnapshotFile | StoreSnapshotData,
+    snapshot: StoreSnapshotManifestFile | LegacyStoreSnapshotManifestFile | LegacyStoreSnapshotFile | StoreSnapshotData,
   ): Promise<StoreSnapshotData> {
+    if (this.isPerKeyManifest(snapshot)) {
+      const merged: StoreSnapshotData = {};
+      for (const entry of snapshot.entries) {
+        const keyPath = resolve(dirname(this.snapshotPath), entry.file);
+        const raw = await fs.readFile(keyPath, 'utf8');
+        const parsed = JSON.parse(raw) as StoreSnapshotKeyFile;
+
+        // Restore only files from manifest's generation.
+        if (parsed?.generation !== snapshot.generation) continue;
+        if (parsed?.key !== entry.key) continue;
+        if (!parsed || typeof parsed !== 'object' || !('data' in parsed)) continue;
+
+        merged[entry.key] = parsed.data;
+      }
+      return merged;
+    }
+
     if (this.isChunkedManifest(snapshot)) {
       const merged: StoreSnapshotData = {};
       for (const chunk of snapshot.chunks) {
         const chunkPath = resolve(dirname(this.snapshotPath), chunk.file);
         const raw = await fs.readFile(chunkPath, 'utf8');
-        const parsed = JSON.parse(raw) as StoreSnapshotChunkFile | StoreSnapshotData;
+        const parsed = JSON.parse(raw) as LegacyStoreSnapshotChunkFile | StoreSnapshotData;
         const chunkData = this.extractDirectSnapshotData(parsed);
         Object.assign(merged, chunkData);
       }
@@ -158,14 +205,22 @@ export class StorePersistenceService implements OnModuleInit, OnModuleDestroy {
     return this.extractDirectSnapshotData(snapshot);
   }
 
-  private isChunkedManifest(snapshot: unknown): snapshot is StoreSnapshotManifestFile {
+  private isPerKeyManifest(snapshot: unknown): snapshot is StoreSnapshotManifestFile {
     return !!snapshot &&
       typeof snapshot === 'object' &&
-      (snapshot as StoreSnapshotManifestFile).format === 'chunked' &&
-      Array.isArray((snapshot as StoreSnapshotManifestFile).chunks);
+      (snapshot as StoreSnapshotManifestFile).format === 'per-key' &&
+      typeof (snapshot as StoreSnapshotManifestFile).generation === 'string' &&
+      Array.isArray((snapshot as StoreSnapshotManifestFile).entries);
   }
 
-  private extractDirectSnapshotData(snapshot: StoreSnapshotFile | StoreSnapshotChunkFile | StoreSnapshotData): StoreSnapshotData {
+  private isChunkedManifest(snapshot: unknown): snapshot is LegacyStoreSnapshotManifestFile {
+    return !!snapshot &&
+      typeof snapshot === 'object' &&
+      (snapshot as LegacyStoreSnapshotManifestFile).format === 'chunked' &&
+      Array.isArray((snapshot as LegacyStoreSnapshotManifestFile).chunks);
+  }
+
+  private extractDirectSnapshotData(snapshot: LegacyStoreSnapshotFile | LegacyStoreSnapshotChunkFile | StoreSnapshotData): StoreSnapshotData {
     if (hasSnapshotDataField(snapshot)) {
       return snapshot.data;
     }
@@ -177,37 +232,45 @@ export class StorePersistenceService implements OnModuleInit, OnModuleDestroy {
     await fs.mkdir(dirname(this.snapshotPath), { recursive: true });
 
     const savedAt = new Date().toISOString();
-    const generation = `${Date.now()}-${process.pid}`;
-    const chunks = this.createChunks(this.storeService.exportSnapshot(), savedAt);
-    const refs: StoreSnapshotChunkRef[] = [];
+    this.generationSeq += 1;
+    const generation = `${Date.now()}-${process.pid}-${this.generationSeq}`;
+    const snapshot = this.storeService.exportSnapshot();
+    const entries: StoreSnapshotPerKeyEntry[] = [];
     let totalKeys = 0;
     let totalPoints = 0;
     let totalBytes = 0;
 
-    for (let i = 0; i < chunks.length; i += 1) {
-      const chunk = chunks[i];
-      const file = `${basename(this.snapshotPath)}.${generation}.part-${String(i + 1).padStart(6, '0')}.json`;
-      const chunkPath = join(dirname(this.snapshotPath), file);
-      const bytes = Buffer.byteLength(JSON.stringify(chunk), 'utf8');
-      const keys = Object.keys(chunk.data).length;
-      const points = Object.values(chunk.data).reduce((sum, value) => {
-        if (Array.isArray(value)) return sum + value.length;
-        return typeof value?.value === 'string' ? sum + 1 : sum;
-      }, 0);
+    const records = Object.entries(snapshot);
+    for (let i = 0; i < records.length; i += 1) {
+      const [key, data] = records[i];
+      const file = `${basename(this.snapshotPath)}.${generation}.key-${String(i + 1).padStart(6, '0')}.json`;
+      const keyPath = join(dirname(this.snapshotPath), file);
+      const type: 'series' | 'pool' = Array.isArray(data) ? 'series' : 'pool';
+      const points = Array.isArray(data) ? data.length : 1;
+      const keyFile: StoreSnapshotKeyFile = {
+        version: 2,
+        savedAt,
+        generation,
+        key,
+        type,
+        data,
+      };
+      const bytes = Buffer.byteLength(JSON.stringify(keyFile), 'utf8');
 
-      await this.writeJsonAtomic(chunkPath, chunk);
-      refs.push({ file, keys, points, bytes });
-      totalKeys += keys;
+      // Atomicity: all key files first, manifest last.
+      await this.writeJsonAtomic(keyPath, keyFile);
+      entries.push({ key, file, type, points, bytes });
+      totalKeys += 1;
       totalPoints += points;
       totalBytes += bytes;
     }
 
     const manifest: StoreSnapshotManifestFile = {
-      version: 1,
+      version: 2,
       savedAt,
-      format: 'chunked',
-      chunkSizeBytes: this.snapshotChunkBytes,
-      chunks: refs,
+      format: 'per-key',
+      generation,
+      entries,
       total: {
         keys: totalKeys,
         points: totalPoints,
@@ -216,40 +279,6 @@ export class StorePersistenceService implements OnModuleInit, OnModuleDestroy {
     };
 
     await this.writeJsonAtomic(this.snapshotPath, manifest);
-    await this.cleanupOldChunkFiles(refs.map((r) => r.file));
-  }
-
-  private createChunks(data: StoreSnapshotData, savedAt: string): StoreSnapshotChunkFile[] {
-    const chunks: StoreSnapshotChunkFile[] = [];
-    let current: StoreSnapshotData = {};
-
-    const pushCurrent = () => {
-      chunks.push({ version: 1, savedAt, part: chunks.length + 1, data: current });
-      current = {};
-    };
-
-    for (const [key, series] of Object.entries(data)) {
-      const candidate = { ...current, [key]: series };
-      const candidateChunk: StoreSnapshotChunkFile = {
-        version: 1,
-        savedAt,
-        part: chunks.length + 1,
-        data: candidate,
-      };
-      const candidateBytes = Buffer.byteLength(JSON.stringify(candidateChunk), 'utf8');
-
-      if (Object.keys(current).length > 0 && candidateBytes > this.snapshotChunkBytes) {
-        pushCurrent();
-      }
-
-      current[key] = series;
-    }
-
-    if (Object.keys(current).length > 0 || chunks.length === 0) {
-      pushCurrent();
-    }
-
-    return chunks;
   }
 
   private async writeJsonAtomic(path: string, payload: unknown): Promise<void> {
@@ -258,21 +287,7 @@ export class StorePersistenceService implements OnModuleInit, OnModuleDestroy {
     await fs.rename(tmpPath, path);
   }
 
-  private async cleanupOldChunkFiles(currentFiles: string[]): Promise<void> {
-    const dir = dirname(this.snapshotPath);
-    const prefix = `${basename(this.snapshotPath)}.`;
-    const keep = new Set(currentFiles);
-
-    try {
-      const files = await fs.readdir(dir);
-      await Promise.all(files
-        .filter((file) => file.startsWith(prefix) && file.includes('.part-') && file.endsWith('.json') && !keep.has(file))
-        .map((file) => fs.rm(join(dir, file), { force: true })));
-    } catch (error: any) {
-      this.logger.warn(`Failed to cleanup old snapshot chunks: ${error?.message ?? error}`);
-    }
-
-  }
+  // Retention policy: keep all generations.
 }
 
 
