@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { StoreGateway } from '../store.gateway';
 import { StoreService } from '../store.service';
+import { WriteMetricsService } from '../write-metrics.service';
 
 /** Minimal mock Socket */
 const makeClient = (id = 'socket1', authKey?: string, queryKey?: string, ip = '127.0.0.1', port = 54321) => ({
@@ -19,7 +20,12 @@ const makeClient = (id = 'socket1', authKey?: string, queryKey?: string, ip = '1
 const mockStoreService = () => ({
   onAnyChange: jest.fn(),
   onChangeMulti: jest.fn(),
-  write: jest.fn(),
+  write: jest.fn().mockReturnValue('accepted'),
+});
+
+const mockWriteMetricsService = () => ({
+  recordAttempt: jest.fn(),
+  recordMalformed: jest.fn(),
 });
 
 const makeConfigService = (apiKey = '') =>
@@ -28,6 +34,7 @@ const makeConfigService = (apiKey = '') =>
 describe('StoreGateway', () => {
   let gateway: StoreGateway;
   let service: ReturnType<typeof mockStoreService>;
+  let writeMetricsService: ReturnType<typeof mockWriteMetricsService>;
 
   const buildModule = async (apiKey = '') => {
     const module: TestingModule = await Test.createTestingModule({
@@ -35,10 +42,12 @@ describe('StoreGateway', () => {
         StoreGateway,
         { provide: StoreService, useFactory: mockStoreService },
         { provide: ConfigService, useValue: makeConfigService(apiKey) },
+        { provide: WriteMetricsService, useFactory: mockWriteMetricsService },
       ],
     }).compile();
     gateway = module.get<StoreGateway>(StoreGateway);
     service = module.get(StoreService);
+    writeMetricsService = module.get(WriteMetricsService);
   };
 
   beforeEach(async () => {
@@ -170,6 +179,7 @@ describe('StoreGateway', () => {
       const client = makeClient();
       gateway.handleWrite(client as any, { key: 'k1', value: 3.14, timestamp: 1000 });
       expect(service.write).toHaveBeenCalledWith('k1', 3.14, 1000);
+      expect(writeMetricsService.recordAttempt).toHaveBeenCalledWith('ws', 'k1', 'accepted');
     });
 
     it('should call service.write without timestamp', () => {
@@ -181,24 +191,29 @@ describe('StoreGateway', () => {
     it('should write pool key as string without timestamp', () => {
       const client = makeClient();
       gateway.handleWrite(client as any, { key: 'dex:arb|A/B|bidPool', value: '0xpool' });
-      expect(service.write).toHaveBeenCalledWith('dex:arb|A/B|bidPool', '0xpool');
+      expect(service.write).toHaveBeenCalledWith('dex:arb|A/B|bidPool', '0xpool', undefined);
     });
 
-    it('should ignore non-string pool value', () => {
+    it('should track invalid pool value via write result', () => {
+      service.write.mockReturnValueOnce('invalid');
       const client = makeClient();
       gateway.handleWrite(client as any, { key: 'dex:arb|A/B|askPool', value: 123 as any });
-      expect(service.write).not.toHaveBeenCalled();
+      expect(service.write).toHaveBeenCalled();
+      expect(writeMetricsService.recordAttempt).toHaveBeenCalledWith('ws', 'dex:arb|A/B|askPool', 'invalid');
     });
 
-    it('should ignore non-number price value', () => {
+    it('should track invalid price value via write result', () => {
+      service.write.mockReturnValueOnce('invalid');
       const client = makeClient();
       gateway.handleWrite(client as any, { key: 'k1', value: 'bad' as any });
-      expect(service.write).not.toHaveBeenCalled();
+      expect(service.write).toHaveBeenCalled();
+      expect(writeMetricsService.recordAttempt).toHaveBeenCalledWith('ws', 'k1', 'invalid');
     });
 
     it('should not throw if payload is malformed', () => {
       const client = makeClient();
       expect(() => gateway.handleWrite(client as any, {} as any)).not.toThrow();
+      expect(writeMetricsService.recordMalformed).toHaveBeenCalledWith('ws');
     });
   });
 

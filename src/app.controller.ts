@@ -39,6 +39,9 @@ export class AppController {
         'POST /store/memory/keys': 'Memory usage for a list of keys',
         'GET /store/clients': 'Connected WebSocket clients',
         'DELETE /store/clients/:id': 'Disconnect a client by socket ID',
+        'GET /store/metrics/writes/service': 'Write metrics for whole service (windows + minute series + topKeys)',
+        'GET /store/metrics/writes/key/:key': 'Write metrics for a single key',
+        'POST /store/metrics/writes/keys': 'Write metrics for selected keys (+ perKey block)',
       },
       websocket: {
         namespace: '/store',

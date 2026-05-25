@@ -8,7 +8,7 @@ import {
 import { Server, Socket } from 'socket.io';
 import { ConfigService } from '@nestjs/config';
 import { StoreService } from './store.service';
-import { isPoolKey } from './store-key.utils';
+import { WriteMetricsService } from './write-metrics.service';
 
 export interface ClientInfo {
   /** Socket ID */
@@ -53,6 +53,7 @@ export class StoreGateway implements OnGatewayConnection, OnGatewayDisconnect {
   constructor(
     private readonly storeService: StoreService,
     private readonly configService: ConfigService,
+    private readonly writeMetricsService: WriteMetricsService,
   ) {
     const key = configService.get<string>('API_KEY', '').trim();
     this.apiKey = key || undefined;
@@ -130,16 +131,12 @@ export class StoreGateway implements OnGatewayConnection, OnGatewayDisconnect {
     _client: Socket,
     payload: { key: string; value: number | string; timestamp?: number },
   ): void {
-    if (typeof payload?.key !== 'string' || payload?.value === undefined) return;
-
-    if (isPoolKey(payload.key)) {
-      if (typeof payload.value !== 'string') return;
-      this.storeService.write(payload.key, payload.value);
+    if (typeof payload?.key !== 'string' || payload?.value === undefined) {
+      this.writeMetricsService.recordMalformed('ws');
       return;
     }
 
-    if (typeof payload.value !== 'number') return;
-    this.storeService.write(payload.key, payload.value, payload.timestamp);
+    this.writeMetricsService.recordAttempt('ws', payload.key, this.storeService.write(payload.key, payload.value, payload.timestamp));
   }
 
   handleDisconnect(client: Socket): void {

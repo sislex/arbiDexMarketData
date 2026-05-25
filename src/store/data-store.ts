@@ -3,6 +3,7 @@ import { DataPoint, NumericDataPoint } from './interfaces/data-point.interface';
 import { isPoolKey } from './store-key.utils';
 
 export type DataChangeCallback = (key: string, point: DataPoint) => void;
+export type WriteRecordResult = 'accepted' | 'deduplicated' | 'invalid';
 
 export interface SeriesQueryOpts {
   from?: number;
@@ -93,7 +94,7 @@ export class DataStore {
    * @param value numeric value
    * @param timestamp Unix ms (defaults to Date.now())
    */
-  record(key: string, value: number | string, timestamp?: number): void {
+  record(key: string, value: number | string, timestamp?: number): WriteRecordResult {
     let series = this.store.get(key);
     if (!series) {
       series = [];
@@ -101,21 +102,21 @@ export class DataStore {
     }
 
     if (isPoolKey(key)) {
-      if (typeof value !== 'string') return;
+      if (typeof value !== 'string') return 'invalid';
       const point: DataPoint = { v: value };
       // Pool keys keep only the latest address.
       series.length = 0;
       series.push(point);
       this.emitter.emit(key, point);
       this.emitter.emit('__any__', key, point);
-      return;
+      return 'accepted';
     }
 
-    if (typeof value !== 'number') return;
+    if (typeof value !== 'number') return 'invalid';
 
     // Deduplication
     const last = series.length > 0 ? series[series.length - 1] : null;
-    if (last && last.v === value) return;
+    if (last && last.v === value) return 'deduplicated';
 
     // FIFO trim
     if (series.length >= this.maxPoints) {
@@ -129,6 +130,7 @@ export class DataStore {
     this.emitter.emit(key, point);
     // Global event
     this.emitter.emit('__any__', key, point);
+    return 'accepted';
   }
 
   /**

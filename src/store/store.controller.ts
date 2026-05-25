@@ -24,6 +24,9 @@ import { KeysQueryDto } from './dto/keys-query.dto';
 import { MemoryQueryDto } from './dto/memory-query.dto';
 import { KeysListQueryDto } from './dto/keys-list-query.dto';
 import { isPoolKey } from './store-key.utils';
+import { WriteMetricsService } from './write-metrics.service';
+import { WriteMetricsQueryDto } from './dto/write-metrics-query.dto';
+import { WriteMetricsKeysDto } from './dto/write-metrics-keys.dto';
 
 @ApiTags('store')
 @Controller('store')
@@ -31,6 +34,7 @@ export class StoreController {
   constructor(
     private readonly storeService: StoreService,
     private readonly storeGateway: StoreGateway,
+    private readonly writeMetricsService: WriteMetricsService,
   ) {}
 
   // ── GET /store/keys ────────────────────────────────────────
@@ -135,7 +139,7 @@ export class StoreController {
   @ApiOperation({ summary: 'Write a single data point' })
   @ApiResponse({ status: 201, description: 'Point written successfully' })
   writePoint(@Body() dto: WritePointDto): { success: boolean } {
-    this.storeService.write(dto.key, dto.value, dto.timestamp);
+    this.writeMetricsService.recordAttempt('rest', dto.key, this.storeService.write(dto.key, dto.value, dto.timestamp));
     return { success: true };
   }
 
@@ -144,8 +148,61 @@ export class StoreController {
   @ApiOperation({ summary: 'Write multiple data points in one request' })
   @ApiResponse({ status: 201, description: 'Points written successfully' })
   writeBatch(@Body() dto: WriteBatchDto): { written: number } {
-    this.storeService.writeBatch(dto.points);
+    for (const point of dto.points) {
+      this.writeMetricsService.recordAttempt('rest', point.key, this.storeService.write(point.key, point.value, point.timestamp));
+    }
     return { written: dto.points.length };
+  }
+
+  // ── GET /store/metrics/writes/service ───────────────────────
+  @Get('metrics/writes/service')
+  @ApiOperation({
+    summary: 'Write load metrics for whole service',
+    description:
+      'Returns incoming/accepted/invalid write counts for requested windows and 1-minute series. ' +
+      '`activeKeys` is calculated by the longest requested window. `topKeys` is available only for service scope.',
+  })
+  @ApiResponse({ status: 200, description: 'Service write metrics' })
+  getServiceWriteMetrics(@Query() query: WriteMetricsQueryDto): any {
+    return this.writeMetricsService.getServiceMetrics({
+      windows: query.windows,
+      seriesMinutes: query.seriesMinutes,
+      topLimit: query.topLimit,
+    });
+  }
+
+  // ── GET /store/metrics/writes/key/:key ──────────────────────
+  @Get('metrics/writes/key/:key')
+  @ApiOperation({
+    summary: 'Write load metrics for a single key',
+    description:
+      'Returns the same windows and series shape as perKey in grouped endpoint. ' +
+      '`isActive` is calculated by the longest requested window.',
+  })
+  @ApiParam({ name: 'key', example: 'binance|ETHUSDT|bidPrice' })
+  @ApiResponse({ status: 200, description: 'Single key write metrics' })
+  getKeyWriteMetrics(@Param('key') key: string, @Query() query: WriteMetricsQueryDto): any {
+    return this.writeMetricsService.getKeyMetrics(key, {
+      windows: query.windows,
+      seriesMinutes: query.seriesMinutes,
+    });
+  }
+
+  // ── POST /store/metrics/writes/keys ─────────────────────────
+  @Post('metrics/writes/keys')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Write load metrics for selected keys',
+    description:
+      'Returns aggregate metrics for requested keys and `perKey` entries with the same shape as single-key endpoint. ' +
+      '`activeKeys` is counted only among provided keys and by the longest requested window.',
+  })
+  @ApiResponse({ status: 200, description: 'Grouped key write metrics' })
+  getKeysWriteMetrics(@Body() dto: WriteMetricsKeysDto): any {
+    return this.writeMetricsService.getKeysMetrics(dto.keys, {
+      windows: dto.windows,
+      seriesMinutes: dto.seriesMinutes,
+    });
   }
 
   // ── DELETE /store/key/:key ─────────────────────────────────

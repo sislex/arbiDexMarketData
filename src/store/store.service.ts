@@ -7,6 +7,7 @@ import {
   KeyMemoryUsage,
   MemoryUsageReport,
   StoreSnapshotData,
+  WriteRecordResult,
 } from './data-store';
 import { DataPoint } from './interfaces/data-point.interface';
 import { isPoolKey } from './store-key.utils';
@@ -20,14 +21,13 @@ export class StoreService {
     this.dataStore = new DataStore(maxPoints);
   }
 
-  write(key: string, value: number | string, timestamp?: number): void {
+  write(key: string, value: number | string, timestamp?: number): WriteRecordResult {
     if (isPoolKey(key)) {
-      if (typeof value !== 'string') return;
-      this.dataStore.record(key, value);
-      return;
+      if (typeof value !== 'string') return 'invalid';
+      return this.dataStore.record(key, value);
     }
-    if (typeof value !== 'number') return;
-    this.dataStore.record(key, value, timestamp);
+    if (typeof value !== 'number') return 'invalid';
+    return this.dataStore.record(key, value, timestamp);
   }
 
   writeBatch(points: Array<{ key: string; value: number | string; timestamp?: number }>): void {

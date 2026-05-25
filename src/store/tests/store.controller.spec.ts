@@ -8,6 +8,7 @@ import { WriteBatchDto } from '../dto/write-batch.dto';
 import { QuerySeriesDto } from '../dto/query-series.dto';
 import { KeysQueryDto } from '../dto/keys-query.dto';
 import { MemoryQueryDto } from '../dto/memory-query.dto';
+import { WriteMetricsService } from '../write-metrics.service';
 
 const mockStoreService = () => ({
   getKeys: jest.fn(),
@@ -30,10 +31,19 @@ const mockStoreGateway = () => ({
   disconnectClient: jest.fn(),
 });
 
+const mockWriteMetricsService = () => ({
+  recordAttempt: jest.fn(),
+  recordMalformed: jest.fn(),
+  getServiceMetrics: jest.fn(),
+  getKeyMetrics: jest.fn(),
+  getKeysMetrics: jest.fn(),
+});
+
 describe('StoreController', () => {
   let controller: StoreController;
   let service: ReturnType<typeof mockStoreService>;
   let gateway: ReturnType<typeof mockStoreGateway>;
+  let writeMetricsService: ReturnType<typeof mockWriteMetricsService>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -41,12 +51,14 @@ describe('StoreController', () => {
       providers: [
         { provide: StoreService, useFactory: mockStoreService },
         { provide: StoreGateway, useFactory: mockStoreGateway },
+        { provide: WriteMetricsService, useFactory: mockWriteMetricsService },
       ],
     }).compile();
 
     controller = module.get<StoreController>(StoreController);
     service = module.get(StoreService);
     gateway = module.get(StoreGateway);
+    writeMetricsService = module.get(WriteMetricsService);
   });
 
   afterEach(() => jest.clearAllMocks());
@@ -173,16 +185,19 @@ describe('StoreController', () => {
   // ── POST /store/write ─────────────────────────────────────────
   describe('writePoint', () => {
     it('should call service.write and return success', () => {
+      service.write.mockReturnValue('accepted');
       const dto: WritePointDto = { key: 'k1', value: 100, timestamp: 1000 };
       const result = controller.writePoint(dto);
       expect(service.write).toHaveBeenCalledWith('k1', 100, 1000);
+      expect(writeMetricsService.recordAttempt).toHaveBeenCalledWith('rest', 'k1', 'accepted');
       expect(result).toEqual({ success: true });
     });
   });
 
   // ── POST /store/write/batch ───────────────────────────────────
   describe('writeBatch', () => {
-    it('should call service.writeBatch and return written count', () => {
+    it('should call service.write for each point and return written count', () => {
+      service.write.mockReturnValue('accepted');
       const dto: WriteBatchDto = {
         points: [
           { key: 'k1', value: 1 },
@@ -190,8 +205,36 @@ describe('StoreController', () => {
         ],
       };
       const result = controller.writeBatch(dto);
-      expect(service.writeBatch).toHaveBeenCalledWith(dto.points);
+      expect(service.write).toHaveBeenCalledTimes(2);
+      expect(writeMetricsService.recordAttempt).toHaveBeenCalledTimes(2);
       expect(result).toEqual({ written: 2 });
+    });
+  });
+
+  // ── Metrics: service/key/keys ────────────────────────────────
+  describe('write metrics endpoints', () => {
+    it('should return service write metrics', () => {
+      const report = { scope: 'service', windows: {}, series: { rangeMinutes: 120, stepMinutes: 1, points: [] } };
+      writeMetricsService.getServiceMetrics.mockReturnValue(report);
+
+      expect(controller.getServiceWriteMetrics({ windows: ['1m'] } as any)).toEqual(report);
+      expect(writeMetricsService.getServiceMetrics).toHaveBeenCalledWith({ windows: ['1m'], seriesMinutes: undefined, topLimit: undefined });
+    });
+
+    it('should return key write metrics', () => {
+      const report = { key: 'k1', windows: {}, series: { rangeMinutes: 120, stepMinutes: 1, points: [] } };
+      writeMetricsService.getKeyMetrics.mockReturnValue(report);
+
+      expect(controller.getKeyWriteMetrics('k1', { windows: ['10m'] } as any)).toEqual(report);
+      expect(writeMetricsService.getKeyMetrics).toHaveBeenCalledWith('k1', { windows: ['10m'], seriesMinutes: undefined });
+    });
+
+    it('should return grouped write metrics for keys', () => {
+      const report = { scope: 'keys', keys: ['k1', 'k2'], windows: {}, perKey: {} };
+      writeMetricsService.getKeysMetrics.mockReturnValue(report);
+
+      expect(controller.getKeysWriteMetrics({ keys: ['k1', 'k2'], windows: ['1h'], seriesMinutes: 60 } as any)).toEqual(report);
+      expect(writeMetricsService.getKeysMetrics).toHaveBeenCalledWith(['k1', 'k2'], { windows: ['1h'], seriesMinutes: 60 });
     });
   });
 
