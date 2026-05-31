@@ -20,8 +20,6 @@ pnpm-debug.log*
 # Coverage
 coverage/
 
-# Runtime persistence snapshots
-data/
 
 # NestJS cache
 .nest/

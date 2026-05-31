@@ -18,7 +18,6 @@ The service acts as the **central market data hub** for the ArbiDex ecosystem:
 
 - Accepts quotes from **arbiDexServerBots** (and any other producers) via REST or WebSocket
 - Stores hot price history in RAM (up to 100 000 points per key, FIFO ring)
-- Persists RAM data to a JSON snapshot every 10 seconds and restores latest points on startup
 - Distributes data to consumers — trading bots, dashboards, analytics agents
 - Supports **real-time subscriptions** via Socket.IO
 
@@ -64,47 +63,11 @@ npm run test:cov        # with coverage
 |---|---|---|
 | `PORT` | `3002` | HTTP/WS server port |
 | `MAX_POINTS_PER_KEY` | `100000` | Maximum points per key (FIFO ring) |
-| `SNAPSHOT_PATH` | `./data/store.snapshot.json` | JSON snapshot file used for autosave/restore |
-| `AUTOSAVE_INTERVAL_MS` | `10000` | Autosave interval in milliseconds |
-| `RESTORE_POINTS_PER_KEY` | `10000` | On startup, restore only latest N points per key |
-| `SNAPSHOT_CHUNK_BYTES` | `10485760` | Approximate max size of each snapshot part (10 MB) |
-| `SOURCE_URL` | `http://45.135.182.251:3002` | Source service URL for `npm run snapshot:pull` |
 | `API_KEY` | _(empty)_ | API key. If not set — auth is disabled (dev mode) |
 
-### Persistence Behavior
+### Storage Behavior
 
-The store is optimized for fast RAM access, but runtime data is also saved to disk:
-
-- on startup, the service tries to read `SNAPSHOT_PATH`;
-- only the latest `RESTORE_POINTS_PER_KEY` points are restored for each key;
-- autosave writes a full JSON snapshot every `AUTOSAVE_INTERVAL_MS` milliseconds;
-- snapshots are written as one manifest file plus `*.part-*.json` chunk files; each part is approximately `SNAPSHOT_CHUNK_BYTES` (10 MB) when possible;
-- snapshot writing is atomic: a temporary file is written first, then renamed;
-- Docker mounts `./data:/app/data`, so the default snapshot survives container recreation.
-
-### Migrating cache from an older deployment
-
-If an older running service does not have autosave yet, export its current RAM cache through REST API into the new snapshot file format:
-
-```bash
-npm run snapshot:pull
-```
-
-The command reads `SOURCE_URL` from `.env`. Use the base API URL: `http://45.135.182.251:3002`. If a Swagger URL with `/api` is accidentally provided, `/api` is stripped automatically.
-
-Override values inline if needed:
-
-```bash
-SOURCE_URL=http://old-host:3002 SNAPSHOT_PATH=./data/store.snapshot.json RESTORE_POINTS_PER_KEY=10000 SNAPSHOT_CHUNK_BYTES=10485760 npm run snapshot:pull
-```
-
-With API key authentication enabled:
-
-```bash
-SOURCE_URL=http://old-host:3002 API_KEY=your-secret-key npm run snapshot:pull
-```
-
-The command reads `/store/keys`, then `/store/key/:key?limit=RESTORE_POINTS_PER_KEY` for every key, writes `SNAPSHOT_PATH` plus chunk files, and prints a memory report with the same response shape as `GET /store/memory`. Start the new container after these files are created; it will restore the cache on startup.
+The service is **in-memory only**. Data is not persisted to disk and is reset on process restart/container recreation.
 
 ---
 
@@ -221,19 +184,6 @@ Returns the list of all keys that have data.
 ```bash
 curl http://localhost:3002/store/keys
 # → ["binance|ETHUSDT|bidPrice", "mexc|ETHUSDT|askPrice", ...]
-```
-
----
-
-#### `GET /store/snapshot`
-Snapshot: all keys with their **latest** value.
-
-```bash
-curl http://localhost:3002/store/snapshot
-# → {
-#      "binance|ETHUSDT|bidPrice": { "t": 1700000001000, "v": 3500.5 },
-#      "dex:arbitrum|WETH/USDC|bidPool": { "value": "0x6f38e884725a116c9c7fbf208e79fe8828a2595f" }
-#    }
 ```
 
 ---
@@ -620,7 +570,7 @@ src/
     data-store.ts                  # Core: DataStore (EventEmitter + Map, deduplication, FIFO)
     store.module.ts                # @Module
     store.service.ts               # @Injectable — wrapper over DataStore
-    store.controller.ts            # 14 REST endpoints + Swagger decorators
+    store.controller.ts            # REST endpoints + Swagger decorators
     store.gateway.ts               # Socket.IO Gateway /store
     interfaces/
       data-point.interface.ts      # { t: number, v: number }

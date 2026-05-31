@@ -54,13 +54,6 @@ export class StoreController {
     return this.storeService.getKeys();
   }
 
-  // ── GET /store/snapshot ────────────────────────────────────
-  @Get('snapshot')
-  @ApiOperation({ summary: 'Get snapshot: all keys with their latest point' })
-  @ApiResponse({ status: 200, description: 'Map of key → last DataPoint | null' })
-  getSnapshot(): Record<string, any> {
-    return this.storeService.getSnapshot();
-  }
 
   // ── GET /store/snapshot/recent ─────────────────────────────
   @Get('snapshot/recent')

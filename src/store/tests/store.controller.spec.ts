@@ -13,7 +13,6 @@ import { WriteMetricsService } from '../write-metrics.service';
 const mockStoreService = () => ({
   getKeys: jest.fn(),
   getKeysInfo: jest.fn(),
-  getSnapshot: jest.fn(),
   getLastPoint: jest.fn(),
   getSeries: jest.fn(),
   write: jest.fn(),
@@ -94,14 +93,6 @@ describe('StoreController', () => {
     });
   });
 
-  // ── GET /store/snapshot ──────────────────────────────────────
-  describe('getSnapshot', () => {
-    it('should return snapshot object', () => {
-      const snap = { a: { t: 1000, v: 10 } };
-      service.getSnapshot.mockReturnValue(snap);
-      expect(controller.getSnapshot()).toEqual(snap);
-    });
-  });
 
   // ── GET /store/snapshot/recent ─────────────────────────────────
   describe('getRecentSnapshot', () => {
