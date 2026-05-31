@@ -44,6 +44,8 @@ npm run stop:docker    # docker compose down
 
 Service will be available at `http://localhost:3002`.
 
+Postgres data is stored in a named Docker volume, so `npm run stop:docker` keeps DB data on disk.
+
 ---
 
 ## Environment Variables (`.env`)
@@ -52,6 +54,14 @@ Service will be available at `http://localhost:3002`.
 |---|---|---|
 | `PORT` | `3002` | HTTP / WS server port |
 | `MAX_POINTS_PER_KEY` | `100000` | Maximum points per key (FIFO ring) |
+| `DB_HOST` | `arbi-postgres` | Postgres host |
+| `DB_PORT` | `5433` | Postgres port on host machine |
+| `DB_PORT_INTERNAL` | `5432` | Postgres port used by app inside docker network |
+| `DB_USER` | `postgres` | Postgres username |
+| `DB_PASSWORD` | `postgres` | Postgres password |
+| `DB_NAME` | `arbidex_market_data` | Postgres database name |
+| `DB_POOL_MAX` | `10` | Max DB connections in pool |
+| `SYNC_INTERVAL_MS` | `60000` | Interval for syncing in-memory numeric series to Postgres |
 | `API_KEY` | _(empty)_ | API key. If not set — auth is disabled (dev mode) |
 
 Generate a secure key:
@@ -105,6 +115,7 @@ const socket = io('http://localhost:3002/store', { query: { api_key: '<key>' } }
 | `GET` | `/store/memory` | Memory report — all keys |
 | `GET` | `/store/key/:key/memory` | Memory usage for a single key |
 | `POST` | `/store/memory/keys` | Memory usage for a list of keys |
+| `GET` | `/store/db/keys/stats` | Stats from Postgres: keys count, records count, first/last timestamp per key |
 | `GET` | `/store/clients` | Connected WebSocket clients and their subscriptions |
 | `DELETE` | `/store/clients/:id` | Disconnect a client by socket ID |
 

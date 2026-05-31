@@ -9,6 +9,7 @@ import { QuerySeriesDto } from '../dto/query-series.dto';
 import { KeysQueryDto } from '../dto/keys-query.dto';
 import { MemoryQueryDto } from '../dto/memory-query.dto';
 import { WriteMetricsService } from '../write-metrics.service';
+import { QuotesRepository } from '../quotes.repository';
 
 const mockStoreService = () => ({
   getKeys: jest.fn(),
@@ -38,11 +39,16 @@ const mockWriteMetricsService = () => ({
   getKeysMetrics: jest.fn(),
 });
 
+const mockQuotesRepository = () => ({
+  getKeysStats: jest.fn(),
+});
+
 describe('StoreController', () => {
   let controller: StoreController;
   let service: ReturnType<typeof mockStoreService>;
   let gateway: ReturnType<typeof mockStoreGateway>;
   let writeMetricsService: ReturnType<typeof mockWriteMetricsService>;
+  let quotesRepository: ReturnType<typeof mockQuotesRepository>;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -51,6 +57,7 @@ describe('StoreController', () => {
         { provide: StoreService, useFactory: mockStoreService },
         { provide: StoreGateway, useFactory: mockStoreGateway },
         { provide: WriteMetricsService, useFactory: mockWriteMetricsService },
+        { provide: QuotesRepository, useFactory: mockQuotesRepository },
       ],
     }).compile();
 
@@ -58,6 +65,7 @@ describe('StoreController', () => {
     service = module.get(StoreService);
     gateway = module.get(StoreGateway);
     writeMetricsService = module.get(WriteMetricsService);
+    quotesRepository = module.get(QuotesRepository);
   });
 
   afterEach(() => jest.clearAllMocks());
@@ -282,6 +290,23 @@ describe('StoreController', () => {
       const dto: MemoryQueryDto = { keys: ['k1'] };
       expect(controller.getMemoryForKeys(dto)).toEqual(report);
       expect(service.getMemoryUsageForKeys).toHaveBeenCalledWith(['k1']);
+    });
+  });
+
+  // ── GET /store/db/keys/stats ───────────────────────────────────
+  describe('getDbKeysStats', () => {
+    it('should return DB key stats from repository', async () => {
+      const report = {
+        totalKeys: 2,
+        keys: [
+          { key: 'binance|ETHUSDT|bidPrice', count: 12, firstTimestamp: 1700000000000, lastTimestamp: 1700000009000 },
+          { key: 'mexc|ETHUSDT|askPrice', count: 8, firstTimestamp: 1700000010000, lastTimestamp: 1700000017000 },
+        ],
+      };
+      quotesRepository.getKeysStats.mockResolvedValue(report);
+
+      await expect(controller.getDbKeysStats()).resolves.toEqual(report);
+      expect(quotesRepository.getKeysStats).toHaveBeenCalledTimes(1);
     });
   });
 

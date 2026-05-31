@@ -27,6 +27,7 @@ import { isPoolKey } from './store-key.utils';
 import { WriteMetricsService } from './write-metrics.service';
 import { WriteMetricsQueryDto } from './dto/write-metrics-query.dto';
 import { WriteMetricsKeysDto } from './dto/write-metrics-keys.dto';
+import { QuotesRepository } from './quotes.repository';
 
 @ApiTags('store')
 @Controller('store')
@@ -35,6 +36,7 @@ export class StoreController {
     private readonly storeService: StoreService,
     private readonly storeGateway: StoreGateway,
     private readonly writeMetricsService: WriteMetricsService,
+    private readonly quotesRepository: QuotesRepository,
   ) {}
 
   // ── GET /store/keys ────────────────────────────────────────
@@ -249,6 +251,18 @@ export class StoreController {
   @ApiResponse({ status: 200, description: 'Memory usage report for the requested keys' })
   getMemoryForKeys(@Body() dto: MemoryQueryDto): any {
     return this.storeService.getMemoryUsageForKeys(dto.keys);
+  }
+
+  // ── GET /store/db/keys/stats ───────────────────────────────────
+  @Get('db/keys/stats')
+  @ApiOperation({
+    summary: 'Get key statistics from Postgres',
+    description:
+      'Returns total number of keys in DB and for each key: total records, first timestamp, and last timestamp.',
+  })
+  @ApiResponse({ status: 200, description: 'DB key stats' })
+  getDbKeysStats(): Promise<any> {
+    return this.quotesRepository.getKeysStats();
   }
 
   // ── GET /store/clients ────────────────────────────────────────

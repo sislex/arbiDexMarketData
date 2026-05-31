@@ -1,4 +1,25 @@
 services:
+  arbi-postgres:
+    image: postgres:16
+    container_name: arbi-market-data-postgres
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    ports:
+      - "${DB_PORT:-5433}:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+      - ./db/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME} -h localhost"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
   market-data:
     build:
       context: .
@@ -9,14 +30,28 @@ services:
     ports:
       - "${PORT:-3002}:3002"
     environment:
-      PORT: 3002
+      PORT: ${PORT:-3002}
       MAX_POINTS_PER_KEY: ${MAX_POINTS_PER_KEY:-100000}
+      DB_HOST: ${DB_HOST}
+      DB_PORT: ${DB_PORT_INTERNAL:-5432}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: ${DB_NAME}
+      DB_POOL_MAX: ${DB_POOL_MAX:-10}
+      SYNC_INTERVAL_MS: ${SYNC_INTERVAL_MS:-60000}
     env_file:
       - .env
+    depends_on:
+      arbi-postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:3002/store/keys"]
       interval: 15s
       timeout: 5s
       retries: 3
       start_period: 10s
+
+volumes:
+  pg_data:
+    name: arbidex_market_data_pg_data
 
