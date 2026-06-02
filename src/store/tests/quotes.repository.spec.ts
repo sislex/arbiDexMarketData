@@ -62,5 +62,33 @@ describe('QuotesRepository', () => {
       });
     });
   });
+
+  describe('getRecentSnapshot', () => {
+    it('maps ranked rows to key->series snapshot', async () => {
+      pgService.query.mockResolvedValue({
+        rows: [
+          { key: 'binance|ETHUSDT|bidPrice', t: '1700000001000', v: '3500.5' },
+          { key: 'binance|ETHUSDT|bidPrice', t: 1700000002000, v: 3501.25 },
+          { key: 'mexc|ETHUSDT|askPrice', t: '1700000010000', v: '3502.1' },
+        ],
+      });
+
+      await expect(repository.getRecentSnapshot(5000)).resolves.toEqual({
+        'binance|ETHUSDT|bidPrice': [
+          { t: 1700000001000, v: 3500.5 },
+          { t: 1700000002000, v: 3501.25 },
+        ],
+        'mexc|ETHUSDT|askPrice': [{ t: 1700000010000, v: 3502.1 }],
+      });
+
+      expect(pgService.query).toHaveBeenCalledWith(expect.stringContaining('ROW_NUMBER() OVER'), [5000]);
+    });
+
+    it('returns empty snapshot when no rows found', async () => {
+      pgService.query.mockResolvedValue({ rows: [] });
+
+      await expect(repository.getRecentSnapshot(5000)).resolves.toEqual({});
+    });
+  });
 });
 

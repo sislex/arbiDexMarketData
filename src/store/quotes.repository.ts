@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PgService } from '../database/pg.service';
 import { QuoteInsertRow } from './quote-sync.utils';
+import { NumericDataPoint } from './interfaces/data-point.interface';
 
 interface LastTimestampRow {
   key: string;
@@ -12,6 +13,12 @@ interface KeyStatsRow {
   records_count: string | number;
   first_t: string | number;
   last_t: string | number;
+}
+
+interface RecentQuoteRow {
+  key: string;
+  t: string | number;
+  v: string | number;
 }
 
 export interface QuoteKeyStats {
@@ -26,9 +33,47 @@ export interface QuotesDbKeysStats {
   keys: QuoteKeyStats[];
 }
 
+export type RecentNumericSnapshot = Record<string, NumericDataPoint[]>;
+
 @Injectable()
 export class QuotesRepository {
   constructor(private readonly pgService: PgService) {}
+
+  async getRecentSnapshot(limitPerKey: number): Promise<RecentNumericSnapshot> {
+    const limit = Number.isFinite(limitPerKey) && limitPerKey > 0
+      ? Math.floor(limitPerKey)
+      : 5000;
+
+    const result = await this.pgService.query<RecentQuoteRow>(
+      `
+        WITH ranked AS (
+          SELECT
+            key,
+            t,
+            v,
+            ROW_NUMBER() OVER (PARTITION BY key ORDER BY t DESC) AS rn
+          FROM quotes
+        )
+        SELECT key, t, v
+        FROM ranked
+        WHERE rn <= $1
+        ORDER BY key ASC, t ASC
+      `,
+      [limit],
+    );
+
+    const snapshot: RecentNumericSnapshot = {};
+    for (const row of result.rows) {
+      const t = Number(row.t);
+      const v = Number(row.v);
+      if (!Number.isFinite(t) || !Number.isFinite(v)) continue;
+
+      if (!snapshot[row.key]) snapshot[row.key] = [];
+      snapshot[row.key].push({ t, v });
+    }
+
+    return snapshot;
+  }
 
   async getKeysStats(): Promise<QuotesDbKeysStats> {
     const result = await this.pgService.query<KeyStatsRow>(

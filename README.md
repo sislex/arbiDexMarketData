@@ -60,6 +60,7 @@ Service will be available at `http://localhost:3002`.
 | `DB_NAME` | `arbidex_market_data` | Postgres database name |
 | `DB_POOL_MAX` | `10` | Max DB connections in pool |
 | `SYNC_INTERVAL_MS` | `60000` | Interval for syncing in-memory numeric series to Postgres |
+| `RESTORE_MAX_POINTS_PER_KEY` | `5000` | On startup restore up to N latest points per key from Postgres (hard cap `5000`) |
 | `API_KEY` | _(empty)_ | API key. If not set — auth is disabled (dev mode) |
 
 Generate a secure key:
@@ -178,7 +179,9 @@ Subscribe to **all** keys at once: `socket.emit('subscribe', {})`.
 
 ## Storage Model
 
-The service is **in-memory only**. Data is not persisted to disk and is reset on process restart/container recreation.
+Numeric series are persisted to Postgres on interval (`SYNC_INTERVAL_MS`).
+On startup, the service restores the latest points per key from Postgres (`RESTORE_MAX_POINTS_PER_KEY`, max `5000`).
+Pool metadata keys (`|bidPool` / `|askPool`) remain in-memory only.
 
 ---
 
