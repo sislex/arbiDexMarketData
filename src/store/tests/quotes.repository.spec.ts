@@ -15,6 +15,17 @@ describe('QuotesRepository', () => {
     jest.clearAllMocks();
   });
 
+  describe('onModuleInit', () => {
+    it('ensures quotes table and index exist', async () => {
+      pgService.query.mockResolvedValue({ rows: [], rowCount: 0 });
+
+      await repository.onModuleInit();
+
+      expect(pgService.query).toHaveBeenNthCalledWith(1, expect.stringContaining('CREATE TABLE IF NOT EXISTS quotes'));
+      expect(pgService.query).toHaveBeenNthCalledWith(2, 'CREATE INDEX IF NOT EXISTS idx_quotes_t ON quotes (t)');
+    });
+  });
+
   describe('getKeysStats', () => {
     it('maps DB aggregated rows to API shape', async () => {
       pgService.query.mockResolvedValue({

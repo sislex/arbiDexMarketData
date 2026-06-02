@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { PgService } from '../database/pg.service';
 import { QuoteInsertRow } from './quote-sync.utils';
 import { NumericDataPoint } from './interfaces/data-point.interface';
@@ -36,8 +36,28 @@ export interface QuotesDbKeysStats {
 export type RecentNumericSnapshot = Record<string, NumericDataPoint[]>;
 
 @Injectable()
-export class QuotesRepository {
+export class QuotesRepository implements OnModuleInit {
+  private readonly logger = new Logger(QuotesRepository.name);
+
   constructor(private readonly pgService: PgService) {}
+
+  async onModuleInit(): Promise<void> {
+    try {
+      await this.pgService.query(`
+        CREATE TABLE IF NOT EXISTS quotes (
+          key TEXT NOT NULL,
+          t BIGINT NOT NULL,
+          v DOUBLE PRECISION NOT NULL,
+          inserted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+          PRIMARY KEY (key, t)
+        )
+      `);
+      await this.pgService.query('CREATE INDEX IF NOT EXISTS idx_quotes_t ON quotes (t)');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.logger.error(`Failed to ensure quotes schema: ${message}`);
+    }
+  }
 
   async getRecentSnapshot(limitPerKey: number): Promise<RecentNumericSnapshot> {
     const limit = Number.isFinite(limitPerKey) && limitPerKey > 0
