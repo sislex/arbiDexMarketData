@@ -1,5 +1,10 @@
 import { EventEmitter } from 'node:events';
-import { DataPoint, NumericDataPoint } from './interfaces/data-point.interface';
+import {
+  DataPoint,
+  NumericDataPoint,
+  PoolMetadata,
+  isPoolMetadata,
+} from './interfaces/data-point.interface';
 import { isPoolKey } from './store-key.utils';
 
 export type DataChangeCallback = (key: string, point: DataPoint) => void;
@@ -35,7 +40,7 @@ export interface MemoryUsageReport {
   };
 }
 
-export type PoolSnapshotValue = { value: string };
+export type PoolSnapshotValue = { value: PoolMetadata };
 export type StoreSnapshotData = Record<string, DataPoint[] | PoolSnapshotValue>;
 
 export interface RestoreStoreOpts {
@@ -94,7 +99,7 @@ export class DataStore {
    * @param value numeric value
    * @param timestamp Unix ms (defaults to Date.now())
    */
-  record(key: string, value: number | string, timestamp?: number): WriteRecordResult {
+  record(key: string, value: number | PoolMetadata, timestamp?: number): WriteRecordResult {
     let series = this.store.get(key);
     if (!series) {
       series = [];
@@ -102,9 +107,9 @@ export class DataStore {
     }
 
     if (isPoolKey(key)) {
-      if (typeof value !== 'string') return 'invalid';
-      const point: DataPoint = { v: value };
-      // Pool keys keep only the latest address.
+      if (!isPoolMetadata(value)) return 'invalid';
+      const point: DataPoint = { v: { ...value } };
+      // Pool keys keep only the latest metadata object.
       series.length = 0;
       series.push(point);
       this.emitter.emit(key, point);
@@ -178,8 +183,8 @@ export class DataStore {
     for (const [key, series] of this.store) {
       if (isPoolKey(key)) {
         const last = series.length > 0 ? series[series.length - 1] : null;
-        if (last && typeof last.v === 'string') {
-          snapshot[key] = { value: last.v };
+        if (last && isPoolMetadata(last.v)) {
+          snapshot[key] = { value: { ...last.v } };
         }
         continue;
       }
@@ -217,9 +222,9 @@ export class DataStore {
           rawValue &&
           typeof rawValue === 'object' &&
           !Array.isArray(rawValue) &&
-          typeof (rawValue as PoolSnapshotValue).value === 'string'
+          isPoolMetadata((rawValue as PoolSnapshotValue).value)
         ) {
-          this.store.set(key, [{ v: (rawValue as PoolSnapshotValue).value }]);
+          this.store.set(key, [{ v: { ...(rawValue as PoolSnapshotValue).value } }]);
         }
         continue;
       }

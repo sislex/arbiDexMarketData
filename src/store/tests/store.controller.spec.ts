@@ -134,6 +134,8 @@ describe('StoreController', () => {
 
   // ── GET /store/key/:key ──────────────────────────────────────
   describe('getSeries', () => {
+    const poolMeta = { dex: 'sushi', version: 'v3', poolAddress: '0xpool' };
+
     it('should call service with opts and return shaped result', () => {
       const pts = [{ t: 1000, v: 1 }, { t: 2000, v: 2 }];
       service.getSeries.mockReturnValue(pts);
@@ -152,11 +154,11 @@ describe('StoreController', () => {
     });
 
     it('should return { key, value } for pool key', () => {
-      service.getLastPoint.mockReturnValue({ v: '0xpool' });
+      service.getLastPoint.mockReturnValue({ v: poolMeta });
       const result = controller.getSeries('dex:arb|A/B|bidPool', {} as QuerySeriesDto);
       expect(service.getLastPoint).toHaveBeenCalledWith('dex:arb|A/B|bidPool');
       expect(service.getSeries).not.toHaveBeenCalled();
-      expect(result).toEqual({ key: 'dex:arb|A/B|bidPool', value: '0xpool' });
+      expect(result).toEqual({ key: 'dex:arb|A/B|bidPool', value: poolMeta });
     });
 
     it('should return { key, value: null } for unknown pool key', () => {

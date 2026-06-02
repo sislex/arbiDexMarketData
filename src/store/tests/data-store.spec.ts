@@ -2,6 +2,8 @@ import { DataStore } from '../data-store';
 
 describe('DataStore', () => {
   let store: DataStore;
+  const pool1 = { dex: 'sushi', version: 'v3', poolAddress: '0xpool1' };
+  const pool2 = { dex: 'camelot', version: 'v2', poolAddress: '0xpool2' };
 
   beforeEach(() => {
     store = new DataStore(100_000);
@@ -47,11 +49,11 @@ describe('DataStore', () => {
       expect(point!.t).toBeLessThanOrEqual(after);
     });
 
-    it('should keep only last value for pool keys', () => {
+    it('should keep only last metadata object for pool keys', () => {
       const key = 'dex:arb|A/B|bidPool';
-      store.record(key, '0xpool1');
-      store.record(key, '0xpool2');
-      expect(store.getSeries(key)).toEqual([{ v: '0xpool2' }]);
+      store.record(key, pool1);
+      store.record(key, pool2);
+      expect(store.getSeries(key)).toEqual([{ v: pool2 }]);
     });
   });
 
@@ -273,12 +275,12 @@ describe('DataStore', () => {
       store.record('a', 1, 1000);
       store.record('a', 2, 2000);
       store.record('b', 10, 3000);
-      store.record('dex:arb|A/B|bidPool', '0xpool');
+      store.record('dex:arb|A/B|bidPool', pool1);
 
       expect(store.serialize()).toEqual({
         a: [{ t: 1000, v: 1 }, { t: 2000, v: 2 }],
         b: [{ t: 3000, v: 10 }],
-        'dex:arb|A/B|bidPool': { value: '0xpool' },
+        'dex:arb|A/B|bidPool': { value: pool1 },
       });
     });
 
@@ -323,7 +325,7 @@ describe('DataStore', () => {
     it('should skip invalid keys and points while restoring', () => {
       store.restore({
         valid: [{ t: 1000, v: 1 }, { t: 'bad', v: 2 }, null, { t: 3000, v: Number.NaN }],
-        'dex:arb|A/B|askPool': { value: '0xpool' },
+        'dex:arb|A/B|askPool': { value: pool1 },
         'dex:arb|A/B|bidPool': [{ t: 1000, v: 'legacy' }],
         empty: [],
         broken: 'not-array',
@@ -331,7 +333,7 @@ describe('DataStore', () => {
 
       expect(store.getKeys()).toEqual(['valid', 'dex:arb|A/B|askPool']);
       expect(store.getSeries('valid')).toEqual([{ t: 1000, v: 1 }]);
-      expect(store.getSeries('dex:arb|A/B|askPool')).toEqual([{ v: '0xpool' }]);
+      expect(store.getSeries('dex:arb|A/B|askPool')).toEqual([{ v: pool1 }]);
       expect(store.getSeries('dex:arb|A/B|bidPool')).toEqual([]);
     });
 

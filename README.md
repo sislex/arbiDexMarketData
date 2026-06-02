@@ -44,8 +44,6 @@ npm run stop:docker    # docker compose down
 
 Service will be available at `http://localhost:3002`.
 
-Postgres data is stored in a named Docker volume, so `npm run stop:docker` keeps DB data on disk.
-
 ---
 
 ## Environment Variables (`.env`)
@@ -115,7 +113,6 @@ const socket = io('http://localhost:3002/store', { query: { api_key: '<key>' } }
 | `GET` | `/store/memory` | Memory report — all keys |
 | `GET` | `/store/key/:key/memory` | Memory usage for a single key |
 | `POST` | `/store/memory/keys` | Memory usage for a list of keys |
-| `GET` | `/store/db/keys/stats` | Stats from Postgres: keys count, records count, first/last timestamp per key |
 | `GET` | `/store/clients` | Connected WebSocket clients and their subscriptions |
 | `DELETE` | `/store/clients/:id` | Disconnect a client by socket ID |
 
@@ -145,7 +142,10 @@ socket.on('dataChange', ({ key, point }) => {
 // Write a point
 socket.emit('write', { key: 'binance|ETHUSDT|bidPrice', value: 3500.5 });
 // Write pool address (latest value only)
-socket.emit('write', { key: 'dex:arbitrum|WETH/USDC|bidPool', value: '0x6f38e884725a116c9c7fbf208e79fe8828a2595f' });
+socket.emit('write', {
+  key: 'dex:arbitrum|WETH/USDC|bidPool',
+  value: { dex: 'sushi', version: 'v3', poolAddress: '0x6f38e884725a116c9c7fbf208e79fe8828a2595f' },
+});
 
 // Unsubscribe
 socket.emit('unsubscribe');
@@ -161,7 +161,7 @@ Subscribe to **all** keys at once: `socket.emit('subscribe', {})`.
 // DataPoint
 { t: number; v: number }  // t — timestamp mс (Unix epoch), v — numeric value
 // PoolDataPoint (for |bidPool / |askPool)
-{ v: string }             // latest pool address, no timestamp
+{ v: { dex: string; version: string; poolAddress: string } } // latest pool metadata, no timestamp
 
 // Key format (compatible with arbiDexServerBots)
 "<source>|<symbol>|<field>"
@@ -172,7 +172,7 @@ Subscribe to **all** keys at once: `socket.emit('subscribe', {})`.
 "dex:arbitrum|WETH/USDC|bidPool"
 ```
 
-**Deduplication:** applies to numeric price keys. Pool keys (`|bidPool` / `|askPool`) always keep only the latest address.
+**Deduplication:** applies to numeric price keys. Pool keys (`|bidPool` / `|askPool`) always keep only the latest metadata object.
 
 ---
 

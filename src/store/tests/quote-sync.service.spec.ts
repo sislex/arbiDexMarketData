@@ -61,7 +61,9 @@ describe('QuoteSyncService', () => {
 
   it('does not write anything when there is no numeric data', async () => {
     storeService.getKeys.mockReturnValue(['dex|ETH/USDC|askPool']);
-    storeService.getSeries.mockReturnValue([{ v: '0xpool' }] as DataPoint[]);
+    storeService.getSeries.mockReturnValue([
+      { v: { dex: 'sushi', version: 'v3', poolAddress: '0xpool' } },
+    ] as DataPoint[]);
     quotesRepository.getLastTimestamps.mockResolvedValue(new Map());
 
     await service.syncNow();

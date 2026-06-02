@@ -8,7 +8,7 @@ describe('quote-sync.utils', () => {
     });
 
     it('returns false for pool-like point', () => {
-      expect(isNumericDataPoint({ v: '0xpool' } as DataPoint)).toBe(false);
+      expect(isNumericDataPoint({ v: { dex: 'sushi', version: 'v3', poolAddress: '0xpool' } } as DataPoint)).toBe(false);
     });
   });
 
@@ -26,7 +26,7 @@ describe('quote-sync.utils', () => {
 
     it('skips non-numeric points', () => {
       const seriesByKey = new Map<string, DataPoint[]>([
-        ['dex|ETH/USDC|bidPool', [{ v: '0xpool' }]],
+        ['dex|ETH/USDC|bidPool', [{ v: { dex: 'sushi', version: 'v3', poolAddress: '0xpool' } }]],
         ['binance|ETHUSDT|bidPrice', [{ t: 1000, v: 10 }]],
       ]);
 

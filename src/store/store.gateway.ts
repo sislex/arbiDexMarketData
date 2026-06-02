@@ -9,6 +9,7 @@ import { Server, Socket } from 'socket.io';
 import { ConfigService } from '@nestjs/config';
 import { StoreService } from './store.service';
 import { WriteMetricsService } from './write-metrics.service';
+import { PoolMetadata } from './interfaces/data-point.interface';
 
 export interface ClientInfo {
   /** Socket ID */
@@ -129,7 +130,7 @@ export class StoreGateway implements OnGatewayConnection, OnGatewayDisconnect {
   @SubscribeMessage('write')
   handleWrite(
     _client: Socket,
-    payload: { key: string; value: number | string; timestamp?: number },
+    payload: { key: string; value: number | PoolMetadata; timestamp?: number },
   ): void {
     if (typeof payload?.key !== 'string' || payload?.value === undefined) {
       this.writeMetricsService.recordMalformed('ws');

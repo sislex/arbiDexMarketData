@@ -28,6 +28,7 @@ import { WriteMetricsService } from './write-metrics.service';
 import { WriteMetricsQueryDto } from './dto/write-metrics-query.dto';
 import { WriteMetricsKeysDto } from './dto/write-metrics-keys.dto';
 import { QuotesRepository } from './quotes.repository';
+import { isPoolMetadata } from './interfaces/data-point.interface';
 
 @ApiTags('store')
 @Controller('store')
@@ -90,11 +91,11 @@ export class StoreController {
   @Get('key/:key')
   @ApiOperation({ summary: 'Get time series for a key with optional filtering' })
   @ApiParam({ name: 'key', example: 'binance|ETHUSDT|bidPrice' })
-  @ApiResponse({ status: 200, description: 'Series response for price keys, or { key, value } for pool keys' })
+  @ApiResponse({ status: 200, description: 'Series response for price keys, or { key, value } with pool metadata for pool keys' })
   getSeries(@Param('key') key: string, @Query() query: QuerySeriesDto): any {
     if (isPoolKey(key)) {
       const point = this.storeService.getLastPoint(key);
-      if (!point || typeof point.v !== 'string') return { key, value: null };
+      if (!point || !isPoolMetadata(point.v)) return { key, value: null };
       return { key, value: point.v };
     }
 

@@ -175,6 +175,8 @@ describe('StoreGateway', () => {
 
   // ── write ────────────────────────────────────────────────────
   describe('handleWrite', () => {
+    const poolMeta = { dex: 'sushi', version: 'v3', poolAddress: '0xpool' };
+
     it('should call service.write with correct args', () => {
       const client = makeClient();
       gateway.handleWrite(client as any, { key: 'k1', value: 3.14, timestamp: 1000 });
@@ -188,10 +190,10 @@ describe('StoreGateway', () => {
       expect(service.write).toHaveBeenCalledWith('k1', 1, undefined);
     });
 
-    it('should write pool key as string without timestamp', () => {
+    it('should write pool key metadata object without timestamp', () => {
       const client = makeClient();
-      gateway.handleWrite(client as any, { key: 'dex:arb|A/B|bidPool', value: '0xpool' });
-      expect(service.write).toHaveBeenCalledWith('dex:arb|A/B|bidPool', '0xpool', undefined);
+      gateway.handleWrite(client as any, { key: 'dex:arb|A/B|bidPool', value: poolMeta });
+      expect(service.write).toHaveBeenCalledWith('dex:arb|A/B|bidPool', poolMeta, undefined);
     });
 
     it('should track invalid pool value via write result', () => {

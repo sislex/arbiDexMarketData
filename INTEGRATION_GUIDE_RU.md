@@ -138,7 +138,11 @@ interface DataPoint {
 }
 
 interface PoolDataPoint {
-  v: string;  // адрес пула, без timestamp
+  v: {
+    dex: string;
+    version: string;
+    poolAddress: string;
+  };  // метаданные пула, без timestamp
 }
 ```
 
@@ -166,7 +170,7 @@ dex:arbitrum|WETH/USDC|bidPool
 ### Дедупликация
 
 Для числовых ценовых ключей: если значение **не изменилось** относительно последней точки — новая точка **не записывается**.
-Для pool-ключей (`|bidPool` / `|askPool`) хранится только последний адрес пула.
+Для pool-ключей (`|bidPool` / `|askPool`) хранится только последний объект метаданных пула.
 
 ---
 
@@ -224,7 +228,14 @@ curl "http://localhost:3002/store/key/binance%7CETHUSDT%7CbidPrice?from=17000000
 
 Ответ для pool-ключа:
 ```json
-{ "key": "dex:arbitrum|WETH/USDC|bidPool", "value": "0x6f38e884725a116c9c7fbf208e79fe8828a2595f" }
+{
+  "key": "dex:arbitrum|WETH/USDC|bidPool",
+  "value": {
+    "dex": "sushi",
+    "version": "v3",
+    "poolAddress": "0x6f38e884725a116c9c7fbf208e79fe8828a2595f"
+  }
+}
 ```
 
 ---
@@ -276,10 +287,10 @@ curl -X POST http://localhost:3002/store/write \
   -H 'Content-Type: application/json' \
   -d '{ "key": "binance|ETHUSDT|bidPrice", "value": 3500.5, "timestamp": 1700000001000 }'
 
-# Запись адреса пула (string value, timestamp игнорируется)
+# Запись метаданных пула (object value, timestamp игнорируется)
 curl -X POST http://localhost:3002/store/write \
   -H 'Content-Type: application/json' \
-  -d '{ "key": "dex:arbitrum|WETH/USDC|bidPool", "value": "0x6f38e884725a116c9c7fbf208e79fe8828a2595f" }'
+  -d '{ "key": "dex:arbitrum|WETH/USDC|bidPool", "value": { "dex": "sushi", "version": "v3", "poolAddress": "0x6f38e884725a116c9c7fbf208e79fe8828a2595f" } }'
 ```
 
 **Ответ:** `201 { "success": true }`
@@ -487,7 +498,11 @@ socket.emit('write', {
 
 socket.emit('write', {
   key: 'dex:arbitrum|WETH/USDC|askPool',
-  value: '0x6f38e884725a116c9c7fbf208e79fe8828a2595f',
+  value: {
+    dex: 'sushi',
+    version: 'v3',
+    poolAddress: '0x6f38e884725a116c9c7fbf208e79fe8828a2595f',
+  },
 });
 ```
 
@@ -539,8 +554,8 @@ await fetch('http://localhost:3002/store/write/batch', {
     points: [
       { key: `${quote.source}|${quote.symbol}|bidPrice`, value: quote.bidPrice, timestamp: quote.timestamp },
       { key: `${quote.source}|${quote.symbol}|askPrice`, value: quote.askPrice, timestamp: quote.timestamp },
-      { key: `${quote.source}|${quote.symbol}|bidPool`, value: quote.bidPoolAddress },
-      { key: `${quote.source}|${quote.symbol}|askPool`, value: quote.askPoolAddress },
+      { key: `${quote.source}|${quote.symbol}|bidPool`, value: { dex: quote.dex, version: quote.version, poolAddress: quote.bidPoolAddress } },
+      { key: `${quote.source}|${quote.symbol}|askPool`, value: { dex: quote.dex, version: quote.version, poolAddress: quote.askPoolAddress } },
     ]
   })
 });
@@ -551,8 +566,8 @@ await fetch('http://localhost:3002/store/write/batch', {
 ```typescript
 socket.emit('write', { key: `${quote.source}|${quote.symbol}|bidPrice`, value: quote.bidPrice });
 socket.emit('write', { key: `${quote.source}|${quote.symbol}|askPrice`, value: quote.askPrice });
-socket.emit('write', { key: `${quote.source}|${quote.symbol}|bidPool`, value: quote.bidPoolAddress });
-socket.emit('write', { key: `${quote.source}|${quote.symbol}|askPool`, value: quote.askPoolAddress });
+socket.emit('write', { key: `${quote.source}|${quote.symbol}|bidPool`, value: { dex: quote.dex, version: quote.version, poolAddress: quote.bidPoolAddress } });
+socket.emit('write', { key: `${quote.source}|${quote.symbol}|askPool`, value: { dex: quote.dex, version: quote.version, poolAddress: quote.askPoolAddress } });
 ```
 
 ---
